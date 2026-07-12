@@ -3,16 +3,17 @@ namespace Yanban.Domain.Ordering;
 /// <summary>
 /// Minimal lexicographic rank: fixed-width base-36 encodings of evenly spaced
 /// integers. Lexicographic string order equals numeric order, so ordering rows by
-/// the rank column yields position order. M2 only appends (<see cref="After"/>);
-/// midpoint insertion / rebalancing for drag-and-drop moves arrives in M3 and works
-/// on the very same encoding — no data migration needed.
+/// the rank column yields position order. Appends leave a <see cref="Gap"/> between
+/// neighbours; <see cref="TryBetween"/> bisects that gap for drag-and-drop inserts,
+/// and reports exhaustion so the caller can rebalance — all on the same encoding, so
+/// no data migration was needed to go from append-only (M2) to arbitrary moves (M3).
 /// </summary>
 public static class Rank
 {
     private const string Alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
     private const int Base = 36;
     private const int Width = 11;        // 36^11 < long.MaxValue and well under the 64-char column
-    private const long Gap = 1L << 16;   // spacing between adjacent items, leaving room for M3 inserts
+    private const long Gap = 1L << 16;   // spacing between adjacent items, leaving room for midpoint inserts
 
     /// <summary>Rank for the first item in an empty list/board.</summary>
     public static string First() => Encode(Gap);
@@ -20,6 +21,30 @@ public static class Rank
     /// <summary>Rank that sorts immediately after <paramref name="last"/> (the current maximum), or <see cref="First"/> when there is none.</summary>
     public static string After(string? last) =>
         last is null ? First() : Encode(Decode(last) + Gap);
+
+    /// <summary>
+    /// Produces a rank that sorts strictly between <paramref name="left"/> and
+    /// <paramref name="right"/> (either bound null = start/end of the list). One
+    /// unified midpoint covers all four null combinations: a missing left is treated
+    /// as 0 and a missing right as one full <see cref="Gap"/> above left, so
+    /// <c>TryBetween(null, null)</c> == <see cref="First"/> and
+    /// <c>TryBetween(x, null)</c> == <see cref="After"/>(x). Returns <c>false</c> when
+    /// the neighbours are adjacent (no integer in between) — the caller must rebalance.
+    /// </summary>
+    public static bool TryBetween(string? left, string? right, out string rank)
+    {
+        var lo = left is null ? 0 : Decode(left);
+        var hi = right is null ? lo + 2 * Gap : Decode(right);
+
+        if (hi - lo <= 1)
+        {
+            rank = string.Empty;
+            return false;
+        }
+
+        rank = Encode(lo + (hi - lo) / 2);
+        return true;
+    }
 
     private static string Encode(long value)
     {

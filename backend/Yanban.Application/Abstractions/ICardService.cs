@@ -12,5 +12,13 @@ public interface ICardService
     Task<CardDto> GetAsync(Guid boardId, Guid cardId, CancellationToken ct);
     Task<CardDto> CreateAsync(Guid boardId, Guid listId, Guid userId, CreateCardRequest request, CancellationToken ct);
     Task<CardDto> UpdateAsync(Guid boardId, Guid cardId, uint expectedVersion, UpdateCardRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// Moves a card to a list/position. Serializes concurrent moves into the same list
+    /// with a row lock on the target list (pessimistic), as opposed to the optimistic
+    /// <c>xmin</c> concurrency used by <see cref="UpdateAsync"/>.
+    /// </summary>
+    Task<CardDto> MoveAsync(Guid boardId, Guid cardId, MoveCardRequest request, CancellationToken ct);
+
     Task DeleteAsync(Guid boardId, Guid cardId, CancellationToken ct);
 }

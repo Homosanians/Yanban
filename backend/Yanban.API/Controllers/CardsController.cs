@@ -54,6 +54,15 @@ public class CardsController : BoardScopedController
         return Ok(card);
     }
 
+    [HttpPost("boards/{boardId:guid}/cards/{cardId:guid}/move")]
+    public async Task<ActionResult<CardDto>> Move(Guid boardId, Guid cardId, MoveCardRequest request, CancellationToken ct)
+    {
+        await RequireBoardAsync(boardId, BoardPermission.Write, ct);
+        var card = await _cards.MoveAsync(boardId, cardId, request, ct);
+        SetETag(card.Version);
+        return Ok(card);
+    }
+
     [HttpDelete("boards/{boardId:guid}/cards/{cardId:guid}")]
     public async Task<IActionResult> Delete(Guid boardId, Guid cardId, CancellationToken ct)
     {

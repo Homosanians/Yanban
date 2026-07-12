@@ -85,6 +85,65 @@ public class CardService : ICardService
         return ToDto(card);
     }
 
+    public async Task<CardDto> MoveAsync(Guid boardId, Guid cardId, MoveCardRequest request, CancellationToken ct)
+    {
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        // Lock the target list row — the ordering mutex. Every mover into this list
+        // takes this lock first, so concurrent moves serialize and can't compute the
+        // same midpoint. Locking only the target is enough: moving a card *out* of its
+        // source leaves the source's remaining ranks untouched. The `AND board_id` both
+        // scopes the move to this board (the target list id is client-supplied) and
+        // validates it in the same round-trip. `lists` has no concurrency token, so
+        // SELECT * is safe for FromSql; ToListAsync runs the statement verbatim (no
+        // subquery wrapping) so FOR UPDATE stays at the top level.
+        var locked = await _db.Lists
+            .FromSql($"SELECT * FROM lists WHERE id = {request.TargetListId} AND board_id = {boardId} FOR UPDATE")
+            .ToListAsync(ct);
+        if (locked.Count == 0)
+            throw new NotFoundAppException("List not found.");
+
+        // Decision reads happen *after* the lock, so a mover that was blocked wakes up
+        // and recomputes against the now-current state rather than a stale snapshot.
+        var card = await FindCardAsync(boardId, cardId, ct);
+
+        var others = await _db.Cards
+            .Where(c => c.ListId == request.TargetListId && c.Id != cardId)
+            .OrderBy(c => c.Rank)
+            .ToListAsync(ct);
+
+        var position = Math.Clamp(request.Position, 0, others.Count);
+        var left = position > 0 ? others[position - 1].Rank : null;
+        var right = position < others.Count ? others[position].Rank : null;
+
+        card.ListId = request.TargetListId;
+        if (Rank.TryBetween(left, right, out var rank))
+        {
+            card.Rank = rank;
+        }
+        else
+        {
+            // The neighbours are adjacent with no encodable rank between them (rare —
+            // Gap allows ~16 bisections at one slot). Re-space the whole target list at
+            // full Gap intervals with the moved card inserted at its position.
+            var ordered = new List<Card>(others);
+            ordered.Insert(position, card);
+            string? previous = null;
+            foreach (var c in ordered)
+            {
+                c.Rank = Rank.After(previous);
+                previous = c.Rank;
+            }
+        }
+
+        // No explicit If-Match on move; the card's xmin token still guards against a
+        // concurrent edit slipping in, surfacing as 409 via the exception middleware.
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        return ToDto(card);
+    }
+
     public async Task DeleteAsync(Guid boardId, Guid cardId, CancellationToken ct)
     {
         var card = await FindCardAsync(boardId, cardId, ct);
