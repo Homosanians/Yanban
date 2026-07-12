@@ -214,7 +214,7 @@ public class MoveEndpointsTests
     }
 
     [Fact]
-    public async Task ConcurrentMovesIntoSameList_SerializeWithoutRankCollisions()
+    public async Task ConcurrentMovesIntoSameSlot_SerializeWithoutRankCollisions()
     {
         var client = NewClient();
         var (token, _) = await RegisterAsync(client);
@@ -222,22 +222,30 @@ public class MoveEndpointsTests
         var source = await CreateListAsync(client, token, board.Id, "Source");
         var target = await CreateListAsync(client, token, board.Id, "Target");
 
+        // Two fixed anchors in the target; every mover aims for position 1 — the single
+        // slot *between* them. Nothing here serializes the movers naturally: they update
+        // distinct card rows and only read A and B, and reads don't block under READ
+        // COMMITTED. So without the target-list lock each concurrent mover reads the same
+        // (A, B) neighbours and computes the identical midpoint -> duplicate ranks. The
+        // lock forces them into distinct sub-slots. (Verified load-bearing: with the
+        // FOR UPDATE removed, the Distinct() assertion below fails.)
+        await CreateCardAsync(client, token, board.Id, target.Id, "A");
+        await CreateCardAsync(client, token, board.Id, target.Id, "B");
+
         const int n = 8;
         var cards = new List<CardDto>();
         for (var i = 0; i < n; i++)
             cards.Add(await CreateCardAsync(client, token, board.Id, source.Id, $"C{i}"));
 
-        // Fire all moves at once, each into the target's position 0. The target list's
-        // row lock forces them to serialize; without it, several would read the same
-        // "current front" and compute an identical midpoint -> duplicate ranks.
         var responses = await Task.WhenAll(
-            cards.Select(c => MoveAsync(client, token, board.Id, c.Id, target.Id, 0)));
+            cards.Select(c => MoveAsync(client, token, board.Id, c.Id, target.Id, 1)));
 
         responses.ShouldAllBe(r => r.StatusCode == HttpStatusCode.OK);
 
         var moved = await ListCardsAsync(client, token, board.Id, target.Id);
-        moved.Count.ShouldBe(n);
-        moved.Select(x => x.Rank).Distinct().Count().ShouldBe(n);
+        moved.Count.ShouldBe(n + 2);
+        moved.Select(x => x.Rank).Distinct().Count().ShouldBe(n + 2);   // no collisions
+        moved.Select(x => x.Rank).ShouldBe(moved.Select(x => x.Rank).OrderBy(r => r, StringComparer.Ordinal));
         (await ListCardsAsync(client, token, board.Id, source.Id)).ShouldBeEmpty();
     }
 }
