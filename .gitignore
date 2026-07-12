@@ -1,0 +1,35 @@
+# ---- .NET ----
+bin/
+obj/
+[Bb]uild/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+project.lock.json
+_ReSharper.Caches/
+.idea/
+riderModule.iml
+*.iml
+
+# ---- Node / frontend ----
+node_modules/
+dist/
+.vite/
+*.local
+
+# ---- Env / secrets ----
+.env
+.env.*
+!.env.example
+appsettings.*.Local.json
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+
+# built SPA (emitted by the frontend build)
+backend/Yanban.API/wwwroot/
+
+# local agent settings
+.claude/
