@@ -20,6 +20,9 @@ public record MoveCardRequest(
     [Required] Guid TargetListId,
     [Range(0, int.MaxValue)] int Position);
 
+/// <summary>Sets or clears (null) the card's assignee; the assignee must be a board member.</summary>
+public record AssignCardRequest(Guid? AssigneeId);
+
 /// <summary><see cref="Version"/> is the Postgres <c>xmin</c> the caller must echo back as an <c>If-Match</c> ETag to update.</summary>
 public record CardDto(
     Guid Id,
@@ -28,4 +31,5 @@ public record CardDto(
     string? Description,
     DateTimeOffset? DueDate,
     string Rank,
-    uint Version);
+    uint Version,
+    Guid? AssigneeId);

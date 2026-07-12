@@ -44,4 +44,12 @@ public abstract class BoardScopedController : ControllerBase
 
         return board;
     }
+
+    /// <summary>
+    /// Evaluates a permission on an already-loaded board without throwing — for
+    /// actions that branch on a permission (e.g. "author or moderator") rather than
+    /// hard-requiring it.
+    /// </summary>
+    protected async Task<bool> HasPermissionAsync(Board board, BoardPermission permission) =>
+        (await _authz.AuthorizeAsync(User, board, new BoardPermissionRequirement(permission))).Succeeded;
 }

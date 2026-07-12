@@ -144,6 +144,27 @@ public class CardService : ICardService
         return ToDto(card);
     }
 
+    public async Task<CardDto> AssignAsync(Guid boardId, Guid cardId, Guid? assigneeId, CancellationToken ct)
+    {
+        var card = await FindCardAsync(boardId, cardId, ct);
+
+        if (assigneeId is Guid userId)
+        {
+            // A card can only be assigned to a member of its board. Same 400 whether the
+            // user is a non-member or doesn't exist, so this can't be used to probe users.
+            var isMember = await _db.BoardMembers.AnyAsync(m => m.BoardId == boardId && m.UserId == userId, ct);
+            if (!isMember)
+                throw new ValidationAppException("The assignee must be a member of the board.");
+        }
+
+        card.AssigneeId = assigneeId;
+        // No client If-Match here (assignment is a low-contention scalar), but the card's
+        // xmin token still guards the tracked save against a lost update -> rare 409.
+        await _db.SaveChangesAsync(ct);
+
+        return ToDto(card);
+    }
+
     public async Task DeleteAsync(Guid boardId, Guid cardId, CancellationToken ct)
     {
         var card = await FindCardAsync(boardId, cardId, ct);
@@ -159,5 +180,5 @@ public class CardService : ICardService
 
     private CardDto ToDto(Card card) =>
         new(card.Id, card.ListId, card.Title, card.Description, card.DueDate, card.Rank,
-            (uint)_db.Entry(card).Property(XminProperty).CurrentValue!);
+            (uint)_db.Entry(card).Property(XminProperty).CurrentValue!, card.AssigneeId);
 }

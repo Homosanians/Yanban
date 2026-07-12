@@ -20,5 +20,8 @@ public interface ICardService
     /// </summary>
     Task<CardDto> MoveAsync(Guid boardId, Guid cardId, MoveCardRequest request, CancellationToken ct);
 
+    /// <summary>Sets or clears the card's assignee; a non-null assignee must be a board member.</summary>
+    Task<CardDto> AssignAsync(Guid boardId, Guid cardId, Guid? assigneeId, CancellationToken ct);
+
     Task DeleteAsync(Guid boardId, Guid cardId, CancellationToken ct);
 }

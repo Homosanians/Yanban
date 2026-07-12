@@ -63,6 +63,15 @@ public class CardsController : BoardScopedController
         return Ok(card);
     }
 
+    [HttpPut("boards/{boardId:guid}/cards/{cardId:guid}/assignee")]
+    public async Task<ActionResult<CardDto>> Assign(Guid boardId, Guid cardId, AssignCardRequest request, CancellationToken ct)
+    {
+        await RequireBoardAsync(boardId, BoardPermission.Write, ct);
+        var card = await _cards.AssignAsync(boardId, cardId, request.AssigneeId, ct);
+        SetETag(card.Version);
+        return Ok(card);
+    }
+
     [HttpDelete("boards/{boardId:guid}/cards/{cardId:guid}")]
     public async Task<IActionResult> Delete(Guid boardId, Guid cardId, CancellationToken ct)
     {
