@@ -1,10 +1,13 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
+using Yanban.API.Authorization;
 using Yanban.API.Middleware;
 using Yanban.Application.Abstractions;
 using Yanban.Application.Common;
@@ -13,7 +16,10 @@ using Yanban.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    // Serialize/accept enums as their names (e.g. "Admin") rather than ints.
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 // OpenAPI document + a Bearer security scheme so the Scalar docs UI can authorize.
 builder.Services.AddOpenApi(options =>
@@ -103,6 +109,10 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+
+// Resource-based authorization for boards (RBAC role × ABAC attributes). Scoped so
+// the handler can resolve the caller's membership via the request DbContext.
+builder.Services.AddScoped<IAuthorizationHandler, BoardAuthorizationHandler>();
 
 // Throttle the credential-guessing surface: fixed window per client IP on /auth/*.
 builder.Services.AddRateLimiter(options =>

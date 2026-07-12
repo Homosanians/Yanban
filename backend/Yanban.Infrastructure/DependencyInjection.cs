@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Yanban.Application.Abstractions;
 using Yanban.Application.Common;
 using Yanban.Infrastructure.Auth;
+using Yanban.Infrastructure.Boards;
 using Yanban.Infrastructure.Caching;
 using Yanban.Infrastructure.Persistence;
 using Yanban.Infrastructure.Security;
@@ -25,6 +26,7 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IBoardService, BoardService>();
 
         return services;
     }
