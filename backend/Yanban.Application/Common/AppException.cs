@@ -40,3 +40,17 @@ public sealed class ConflictAppException : AppException
     public override int StatusCode => 409;
     public ConflictAppException(string message) : base(message) { }
 }
+
+/// <summary>The client omitted a required precondition (e.g. an <c>If-Match</c> header).</summary>
+public sealed class PreconditionRequiredAppException : AppException
+{
+    public override int StatusCode => 428;
+    public PreconditionRequiredAppException(string message) : base(message) { }
+}
+
+/// <summary>A supplied precondition failed — the resource changed since the client last saw it.</summary>
+public sealed class PreconditionFailedAppException : AppException
+{
+    public override int StatusCode => 412;
+    public PreconditionFailedAppException(string message) : base(message) { }
+}

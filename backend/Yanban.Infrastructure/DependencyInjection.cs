@@ -6,6 +6,8 @@ using Yanban.Application.Common;
 using Yanban.Infrastructure.Auth;
 using Yanban.Infrastructure.Boards;
 using Yanban.Infrastructure.Caching;
+using Yanban.Infrastructure.Cards;
+using Yanban.Infrastructure.Lists;
 using Yanban.Infrastructure.Persistence;
 using Yanban.Infrastructure.Security;
 
@@ -27,6 +29,8 @@ public static class DependencyInjection
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IBoardService, BoardService>();
+        services.AddScoped<IListService, ListService>();
+        services.AddScoped<ICardService, CardService>();
 
         return services;
     }
