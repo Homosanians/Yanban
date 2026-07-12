@@ -132,7 +132,45 @@ public class CommentsAndAssigneeEndpointsTests
             ownerToken, new { assigneeId = (Guid?)Guid.NewGuid() }))).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task RemovingAssignedMember_ClearsTheirCardAssignments()
+    {
+        var client = NewClient();
+        var (ownerToken, _, _) = await RegisterAsync(client);
+        var (_, memberId, memberEmail) = await RegisterAsync(client);
+        var board = await CreateBoardAsync(client, ownerToken);
+        await AddMemberAsync(client, ownerToken, board.Id, memberEmail, "Editor");
+        var list = await CreateListAsync(client, ownerToken, board.Id);
+        var card = await CreateCardAsync(client, ownerToken, board.Id, list.Id);
+
+        await client.SendAsync(Authed(HttpMethod.Put, $"/boards/{board.Id}/cards/{card.Id}/assignee",
+            ownerToken, new { assigneeId = (Guid?)memberId }));
+
+        // Removing the member must not leave the card assigned to a non-member.
+        (await client.SendAsync(Authed(HttpMethod.Delete, $"/boards/{board.Id}/members/{memberId}", ownerToken)))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var after = await (await client.SendAsync(Authed(HttpMethod.Get, $"/boards/{board.Id}/cards/{card.Id}", ownerToken)))
+            .Content.ReadFromJsonAsync<CardDto>(Json);
+        after!.AssigneeId.ShouldBeNull();
+    }
+
     // ---- Comments -------------------------------------------------------------------
+
+    [Fact]
+    public async Task Viewer_CannotComment()
+    {
+        var client = NewClient();
+        var (ownerToken, _, _) = await RegisterAsync(client);
+        var (viewerToken, _, viewerEmail) = await RegisterAsync(client);
+        var board = await CreateBoardAsync(client, ownerToken);
+        await AddMemberAsync(client, ownerToken, board.Id, viewerEmail, "Viewer");
+        var list = await CreateListAsync(client, ownerToken, board.Id);
+        var card = await CreateCardAsync(client, ownerToken, board.Id, list.Id);
+
+        (await client.SendAsync(Authed(HttpMethod.Post, $"/boards/{board.Id}/cards/{card.Id}/comments",
+            viewerToken, new { body = "Viewer note" }))).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
 
     [Fact]
     public async Task Comment_CanBeCreatedAndListed()

@@ -126,8 +126,20 @@ public class BoardService : IBoardService
             .FirstOrDefaultAsync(m => m.BoardId == boardId && m.UserId == targetUserId, ct)
             ?? throw new NotFoundAppException("Member not found.");
 
+        // Removing a member must also maintain the "assignee is always a board member"
+        // invariant: unassign them from every card on this board. The card FK's SetNull
+        // only fires on user *deletion*, not on losing membership, so we do it here — in
+        // one transaction with the removal so a card can never point at a non-member.
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
         _db.BoardMembers.Remove(member);
         await _db.SaveChangesAsync(ct);
+
+        await _db.Cards
+            .Where(c => c.AssigneeId == targetUserId && c.List.BoardId == boardId)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.AssigneeId, (Guid?)null), ct);
+
+        await tx.CommitAsync(ct);
     }
 
     private async Task<Board> GetBoardAsync(Guid boardId, CancellationToken ct) =>
