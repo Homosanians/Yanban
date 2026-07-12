@@ -1,0 +1,37 @@
+@host = http://localhost:5214
+@contentType = application/json
+
+### Register (sets refreshToken httpOnly cookie; body returns accessToken only)
+# @name register
+POST {{host}}/auth/register
+Content-Type: {{contentType}}
+
+{
+  "email": "alice@example.com",
+  "password": "correct horse battery staple",
+  "displayName": "Alice"
+}
+
+### Login
+# @name login
+POST {{host}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "alice@example.com",
+  "password": "correct horse battery staple"
+}
+
+### Who am I (Bearer from login; the REST client stores the cookie automatically)
+GET {{host}}/me
+Authorization: Bearer {{login.response.body.accessToken}}
+
+### Refresh (uses the stored httpOnly cookie; no body needed)
+POST {{host}}/auth/refresh
+
+### Logout (revokes the refresh token and clears the cookie)
+POST {{host}}/auth/logout
+
+### Logout everywhere (bumps token_version; needs a valid access token)
+POST {{host}}/auth/logout-all
+Authorization: Bearer {{login.response.body.accessToken}}
