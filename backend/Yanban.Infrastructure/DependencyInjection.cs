@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Yanban.Application.Abstractions;
 using Yanban.Application.Common;
+using Yanban.Infrastructure.Activities;
 using Yanban.Infrastructure.Auth;
 using Yanban.Infrastructure.Boards;
 using Yanban.Infrastructure.Caching;
@@ -33,6 +34,10 @@ public static class DependencyInjection
         services.AddScoped<IListService, ListService>();
         services.AddScoped<ICardService, CardService>();
         services.AddScoped<ICommentService, CommentService>();
+        services.AddScoped<IActivityService, ActivityService>();
+        // Scoped so it shares the request DbContext with the services it audits — that
+        // shared unit of work is what makes each audit row commit with its mutation.
+        services.AddScoped<IActivityRecorder, ActivityRecorder>();
 
         return services;
     }

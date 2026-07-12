@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Yanban.API.Authorization;
+using Yanban.API.Identity;
 using Yanban.API.Middleware;
 using Yanban.Application.Abstractions;
 using Yanban.Application.Common;
@@ -47,6 +48,12 @@ builder.Services.AddOpenApi(options =>
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Ambient caller identity for audit trails. The accessor exposes the request's
+// principal; ICurrentUser reads its sub claim so Infrastructure can record "who did
+// it" without taking a dependency on HttpContext.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
 
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
           ?? throw new InvalidOperationException("Missing Jwt configuration section.");

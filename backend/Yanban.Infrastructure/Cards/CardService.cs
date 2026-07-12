@@ -3,6 +3,7 @@ using Yanban.Application.Abstractions;
 using Yanban.Application.Cards;
 using Yanban.Application.Common;
 using Yanban.Domain.Entities;
+using Yanban.Domain.Enums;
 using Yanban.Domain.Ordering;
 using Yanban.Infrastructure.Persistence;
 
@@ -13,8 +14,13 @@ public class CardService : ICardService
     private const string XminProperty = "xmin";
 
     private readonly YanbanDbContext _db;
+    private readonly IActivityRecorder _activity;
 
-    public CardService(YanbanDbContext db) => _db = db;
+    public CardService(YanbanDbContext db, IActivityRecorder activity)
+    {
+        _db = db;
+        _activity = activity;
+    }
 
     public async Task<IReadOnlyList<CardDto>> ListAsync(Guid boardId, Guid listId, CancellationToken ct)
     {
@@ -54,6 +60,7 @@ public class CardService : ICardService
             CreatedById = userId
         };
         _db.Cards.Add(card);
+        _activity.Record(boardId, ActivityAction.Created, ActivityEntityTypes.Card, card.Id, $"Added card \"{card.Title}\"");
         await _db.SaveChangesAsync(ct);
 
         return ToDto(card);
@@ -72,6 +79,10 @@ public class CardService : ICardService
         card.Title = request.Title.Trim();
         card.Description = request.Description;
         card.DueDate = request.DueDate;
+
+        // Recorded into the same SaveChanges, so if the xmin precondition fails below
+        // the audit row is discarded with the update — a rejected edit leaves no trace.
+        _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.Card, cardId, $"Updated \"{card.Title}\"");
 
         try
         {
@@ -138,6 +149,7 @@ public class CardService : ICardService
 
         // No explicit If-Match on move; the card's xmin token still guards against a
         // concurrent edit slipping in, surfacing as 409 via the exception middleware.
+        _activity.Record(boardId, ActivityAction.Moved, ActivityEntityTypes.Card, cardId, $"Moved \"{card.Title}\"");
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
@@ -158,6 +170,8 @@ public class CardService : ICardService
         }
 
         card.AssigneeId = assigneeId;
+        _activity.Record(boardId, ActivityAction.Assigned, ActivityEntityTypes.Card, cardId,
+            assigneeId is null ? $"Unassigned \"{card.Title}\"" : $"Assigned \"{card.Title}\"");
         // No client If-Match here (assignment is a low-contention scalar), but the card's
         // xmin token still guards the tracked save against a lost update -> rare 409.
         await _db.SaveChangesAsync(ct);
@@ -169,6 +183,7 @@ public class CardService : ICardService
     {
         var card = await FindCardAsync(boardId, cardId, ct);
         _db.Cards.Remove(card);
+        _activity.Record(boardId, ActivityAction.Deleted, ActivityEntityTypes.Card, cardId, $"Deleted \"{card.Title}\"");
         await _db.SaveChangesAsync(ct);
     }
 

@@ -11,8 +11,13 @@ namespace Yanban.Infrastructure.Boards;
 public class BoardService : IBoardService
 {
     private readonly YanbanDbContext _db;
+    private readonly IActivityRecorder _activity;
 
-    public BoardService(YanbanDbContext db) => _db = db;
+    public BoardService(YanbanDbContext db, IActivityRecorder activity)
+    {
+        _db = db;
+        _activity = activity;
+    }
 
     public async Task<BoardDto> CreateAsync(Guid userId, CreateBoardRequest request, CancellationToken ct)
     {
@@ -28,6 +33,7 @@ public class BoardService : IBoardService
         board.Members.Add(new BoardMember { BoardId = board.Id, UserId = userId, Role = BoardRole.Admin });
 
         _db.Boards.Add(board);
+        _activity.Record(board.Id, ActivityAction.Created, ActivityEntityTypes.Board, board.Id, $"Created \"{board.Name}\"");
         await _db.SaveChangesAsync(ct);
 
         return new BoardDto(board.Id, board.Name, board.OwnerId, false, board.CreatedAt, BoardRole.Admin);
@@ -53,6 +59,7 @@ public class BoardService : IBoardService
     {
         var board = await GetBoardAsync(boardId, ct);
         board.Name = request.Name.Trim();
+        _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.Board, boardId, $"Renamed to \"{board.Name}\"");
         await _db.SaveChangesAsync(ct);
 
         var role = await _db.BoardMembers
@@ -67,6 +74,7 @@ public class BoardService : IBoardService
     {
         var board = await GetBoardAsync(boardId, ct);
         board.ArchivedAt = archived ? DateTimeOffset.UtcNow : null;
+        _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.Board, boardId, archived ? "Archived" : "Unarchived");
         await _db.SaveChangesAsync(ct);
     }
 
@@ -74,6 +82,9 @@ public class BoardService : IBoardService
     {
         var board = await GetBoardAsync(boardId, ct);
         _db.Boards.Remove(board); // members, lists and cards cascade
+        // BoardId is an unconstrained column, so this audit row survives the board it
+        // records the deletion of (it just won't be reachable via the board's own feed).
+        _activity.Record(boardId, ActivityAction.Deleted, ActivityEntityTypes.Board, boardId, $"Deleted \"{board.Name}\"");
         await _db.SaveChangesAsync(ct);
     }
 
@@ -94,6 +105,7 @@ public class BoardService : IBoardService
             throw new ConflictAppException("User is already a member of this board.");
 
         _db.BoardMembers.Add(new BoardMember { BoardId = boardId, UserId = user.Id, Role = request.Role });
+        _activity.Record(boardId, ActivityAction.Created, ActivityEntityTypes.Member, user.Id, $"Added {user.Email} as {request.Role}");
         await _db.SaveChangesAsync(ct);
 
         return new BoardMemberDto(user.Id, user.Email, user.DisplayName, request.Role);
@@ -111,6 +123,7 @@ public class BoardService : IBoardService
             ?? throw new NotFoundAppException("Member not found.");
 
         member.Role = request.Role;
+        _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.Member, targetUserId, $"Role → {request.Role}");
         await _db.SaveChangesAsync(ct);
 
         return new BoardMemberDto(member.UserId, member.User.Email, member.User.DisplayName, member.Role);
@@ -133,6 +146,7 @@ public class BoardService : IBoardService
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         _db.BoardMembers.Remove(member);
+        _activity.Record(boardId, ActivityAction.Deleted, ActivityEntityTypes.Member, targetUserId, "Removed from board");
         await _db.SaveChangesAsync(ct);
 
         await _db.Cards

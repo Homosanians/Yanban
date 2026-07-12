@@ -3,6 +3,7 @@ using Yanban.Application.Abstractions;
 using Yanban.Application.Comments;
 using Yanban.Application.Common;
 using Yanban.Domain.Entities;
+using Yanban.Domain.Enums;
 using Yanban.Infrastructure.Persistence;
 
 namespace Yanban.Infrastructure.Comments;
@@ -10,8 +11,13 @@ namespace Yanban.Infrastructure.Comments;
 public class CommentService : ICommentService
 {
     private readonly YanbanDbContext _db;
+    private readonly IActivityRecorder _activity;
 
-    public CommentService(YanbanDbContext db) => _db = db;
+    public CommentService(YanbanDbContext db, IActivityRecorder activity)
+    {
+        _db = db;
+        _activity = activity;
+    }
 
     public async Task<IReadOnlyList<CommentDto>> ListAsync(Guid boardId, Guid cardId, CancellationToken ct)
     {
@@ -37,6 +43,7 @@ public class CommentService : ICommentService
             CreatedAt = DateTimeOffset.UtcNow
         };
         _db.Comments.Add(comment);
+        _activity.Record(boardId, ActivityAction.Created, ActivityEntityTypes.Comment, comment.Id, "Commented");
         await _db.SaveChangesAsync(ct);
 
         return await ToDtoAsync(comment.Id, ct);
@@ -52,6 +59,7 @@ public class CommentService : ICommentService
 
         comment.Body = request.Body.Trim();
         comment.EditedAt = DateTimeOffset.UtcNow;
+        _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.Comment, commentId, "Edited a comment");
         await _db.SaveChangesAsync(ct);
 
         return await ToDtoAsync(comment.Id, ct);
@@ -66,6 +74,7 @@ public class CommentService : ICommentService
             throw new ForbiddenAppException("Only the author or a board admin can delete a comment.");
 
         _db.Comments.Remove(comment);
+        _activity.Record(boardId, ActivityAction.Deleted, ActivityEntityTypes.Comment, commentId, "Deleted a comment");
         await _db.SaveChangesAsync(ct);
     }
 

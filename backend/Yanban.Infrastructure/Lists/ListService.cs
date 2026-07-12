@@ -3,6 +3,7 @@ using Yanban.Application.Abstractions;
 using Yanban.Application.Common;
 using Yanban.Application.Lists;
 using Yanban.Domain.Entities;
+using Yanban.Domain.Enums;
 using Yanban.Domain.Ordering;
 using Yanban.Infrastructure.Persistence;
 
@@ -11,8 +12,13 @@ namespace Yanban.Infrastructure.Lists;
 public class ListService : IListService
 {
     private readonly YanbanDbContext _db;
+    private readonly IActivityRecorder _activity;
 
-    public ListService(YanbanDbContext db) => _db = db;
+    public ListService(YanbanDbContext db, IActivityRecorder activity)
+    {
+        _db = db;
+        _activity = activity;
+    }
 
     public async Task<IReadOnlyList<ListDto>> ListAsync(Guid boardId, CancellationToken ct) =>
         await _db.Lists
@@ -37,6 +43,7 @@ public class ListService : IListService
             Rank = Rank.After(lastRank)
         };
         _db.Lists.Add(list);
+        _activity.Record(boardId, ActivityAction.Created, ActivityEntityTypes.List, list.Id, $"Added list \"{list.Name}\"");
         await _db.SaveChangesAsync(ct);
 
         return new ListDto(list.Id, list.BoardId, list.Name, list.Rank);
@@ -46,6 +53,7 @@ public class ListService : IListService
     {
         var list = await GetListAsync(boardId, listId, ct);
         list.Name = request.Name.Trim();
+        _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.List, listId, $"Renamed list to \"{list.Name}\"");
         await _db.SaveChangesAsync(ct);
         return new ListDto(list.Id, list.BoardId, list.Name, list.Rank);
     }
@@ -54,6 +62,7 @@ public class ListService : IListService
     {
         var list = await GetListAsync(boardId, listId, ct);
         _db.Lists.Remove(list); // cards cascade
+        _activity.Record(boardId, ActivityAction.Deleted, ActivityEntityTypes.List, listId, $"Deleted list \"{list.Name}\"");
         await _db.SaveChangesAsync(ct);
     }
 

@@ -16,6 +16,7 @@ public class YanbanDbContext : DbContext
     public DbSet<BoardList> Lists => Set<BoardList>();
     public DbSet<Card> Cards => Set<Card>();
     public DbSet<Comment> Comments => Set<Comment>();
+    public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
