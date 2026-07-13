@@ -11,9 +11,15 @@ public class CardConfiguration : IEntityTypeConfiguration<Card>
     public const string SearchVectorProperty = "SearchVector";
 
     /// <summary>
-    /// The Postgres text-search config. A query must be parsed with the same config the
-    /// vector was built with, so both sides read it from here — a mismatch would silently
-    /// return nothing for stemmed words.
+    /// The Postgres text-search config. A query must be parsed with the same config the vector
+    /// was built with, or stemmed words silently match nothing.
+    ///
+    /// CAUTION: this const is the single source only at *model-build* time. It is interpolated
+    /// into the computed-column SQL, which is then frozen into a migration — the already-applied
+    /// migration hard-codes 'russian'. The query side (CardSearchService) reads this const at
+    /// runtime. So changing it alone desynchronizes the two and search quietly stops stemming,
+    /// with no test failing (the tests move with the const). Changing it requires a new migration
+    /// that rebuilds the column.
     /// </summary>
     public const string TextSearchConfig = "russian";
 
