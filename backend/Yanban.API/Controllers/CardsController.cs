@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Yanban.Application.Abstractions;
 using Yanban.Application.Cards;
 using Yanban.Application.Common;
+using Yanban.Application.Templates;
 using Yanban.Domain.Authorization;
 using Yanban.Infrastructure.Persistence;
 
@@ -32,6 +33,16 @@ public class CardsController : BoardScopedController
     {
         await RequireBoardAsync(boardId, BoardPermission.Write, ct);
         var card = await _cards.CreateAsync(boardId, listId, UserId, request, ct);
+        SetETag(card.Version);
+        return CreatedAtAction(nameof(Get), new { boardId, cardId = card.Id }, card);
+    }
+
+    [HttpPost("boards/{boardId:guid}/lists/{listId:guid}/cards/from-template")]
+    public async Task<ActionResult<CardDto>> CreateFromTemplate(
+        Guid boardId, Guid listId, CreateCardFromTemplateRequest request, CancellationToken ct)
+    {
+        await RequireBoardAsync(boardId, BoardPermission.Write, ct);
+        var card = await _cards.CreateFromTemplateAsync(boardId, listId, UserId, request, ct);
         SetETag(card.Version);
         return CreatedAtAction(nameof(Get), new { boardId, cardId = card.Id }, card);
     }

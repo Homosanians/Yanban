@@ -15,6 +15,7 @@ public class YanbanDbContext : DbContext
     public DbSet<BoardMember> BoardMembers => Set<BoardMember>();
     public DbSet<BoardList> Lists => Set<BoardList>();
     public DbSet<Card> Cards => Set<Card>();
+    public DbSet<CardTemplate> CardTemplates => Set<CardTemplate>();
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
     public DbSet<Attachment> Attachments => Set<Attachment>();

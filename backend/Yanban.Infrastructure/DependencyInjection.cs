@@ -15,8 +15,10 @@ using Yanban.Infrastructure.Cards;
 using Yanban.Infrastructure.Comments;
 using Yanban.Infrastructure.Lists;
 using Yanban.Infrastructure.Persistence;
+using Yanban.Infrastructure.Search;
 using Yanban.Infrastructure.Security;
 using Yanban.Infrastructure.Storage;
+using Yanban.Infrastructure.Templates;
 
 namespace Yanban.Infrastructure;
 
@@ -38,6 +40,8 @@ public static class DependencyInjection
         services.AddScoped<IBoardService, BoardService>();
         services.AddScoped<IListService, ListService>();
         services.AddScoped<ICardService, CardService>();
+        services.AddScoped<ICardSearchService, CardSearchService>();
+        services.AddScoped<ICardTemplateService, CardTemplateService>();
         services.AddScoped<ICommentService, CommentService>();
         services.AddScoped<IActivityService, ActivityService>();
         // Scoped so it shares the request DbContext with the services it audits — that

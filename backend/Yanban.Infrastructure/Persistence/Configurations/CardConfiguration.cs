@@ -1,11 +1,22 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using NpgsqlTypes;
 using Yanban.Domain.Entities;
 
 namespace Yanban.Infrastructure.Persistence.Configurations;
 
 public class CardConfiguration : IEntityTypeConfiguration<Card>
 {
+    /// <summary>Name of the shadow search-vector property; the search service reads it via EF.Property.</summary>
+    public const string SearchVectorProperty = "SearchVector";
+
+    /// <summary>
+    /// The Postgres text-search config. A query must be parsed with the same config the
+    /// vector was built with, so both sides read it from here — a mismatch would silently
+    /// return nothing for stemmed words.
+    /// </summary>
+    public const string TextSearchConfig = "russian";
+
     public void Configure(EntityTypeBuilder<Card> b)
     {
         b.ToTable("cards");
@@ -38,5 +49,28 @@ public class CardConfiguration : IEntityTypeConfiguration<Card>
             .HasColumnType("xid")
             .ValueGeneratedOnAddOrUpdate()
             .IsConcurrencyToken();
+
+        // Full-text search (ADR-12). A shadow property for the same reason xmin is one:
+        // the vector is a derived index artifact, not domain state, and mapping it here
+        // keeps NpgsqlTsVector — a database driver type — out of Yanban.Domain, which
+        // has no package references at all.
+        //
+        // STORED means Postgres recomputes it on every write, so the index can never
+        // drift from the row and no trigger or backfill is needed. Two details are
+        // load-bearing:
+        //   - the config must be named: to_tsvector(regconfig, text) is IMMUTABLE, while
+        //     the one-arg to_tsvector(text) is only STABLE and Postgres rejects it here;
+        //   - 'russian' is bilingual in stock Postgres — it maps asciiword to english_stem
+        //     and word to russian_stem — so one column stems "deploying"->"deploy" and
+        //     "задачи"->"задач". Verified against postgres:16-alpine.
+        // setweight A/B is what makes a title hit outrank a body hit under ts_rank.
+        b.Property<NpgsqlTsVector>(SearchVectorProperty)
+            .HasColumnName("search_vector")
+            .HasComputedColumnSql(
+                $"setweight(to_tsvector('{TextSearchConfig}', coalesce(title, '')), 'A') || " +
+                $"setweight(to_tsvector('{TextSearchConfig}', coalesce(description, '')), 'B')",
+                stored: true);
+
+        b.HasIndex(SearchVectorProperty).HasMethod("gin");
     }
 }

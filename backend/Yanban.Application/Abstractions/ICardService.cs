@@ -1,4 +1,5 @@
 using Yanban.Application.Cards;
+using Yanban.Application.Templates;
 
 namespace Yanban.Application.Abstractions;
 
@@ -11,6 +12,13 @@ public interface ICardService
     Task<IReadOnlyList<CardDto>> ListAsync(Guid boardId, Guid listId, CancellationToken ct);
     Task<CardDto> GetAsync(Guid boardId, Guid cardId, CancellationToken ct);
     Task<CardDto> CreateAsync(Guid boardId, Guid listId, Guid userId, CreateCardRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// Creates a card by stamping a template's title and description onto it. The template's
+    /// text is copied, not referenced: editing the template later does not rewrite past cards.
+    /// </summary>
+    Task<CardDto> CreateFromTemplateAsync(Guid boardId, Guid listId, Guid userId, CreateCardFromTemplateRequest request, CancellationToken ct);
+
     Task<CardDto> UpdateAsync(Guid boardId, Guid cardId, uint expectedVersion, UpdateCardRequest request, CancellationToken ct);
 
     /// <summary>

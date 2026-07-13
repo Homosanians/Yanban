@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Yanban.Application.Abstractions;
 using Yanban.Application.Cards;
 using Yanban.Application.Common;
+using Yanban.Application.Templates;
 using Yanban.Domain.Entities;
 using Yanban.Domain.Enums;
 using Yanban.Domain.Ordering;
@@ -38,7 +39,27 @@ public class CardService : ICardService
     public async Task<CardDto> GetAsync(Guid boardId, Guid cardId, CancellationToken ct) =>
         ToDto(await FindCardAsync(boardId, cardId, ct));
 
-    public async Task<CardDto> CreateAsync(Guid boardId, Guid listId, Guid userId, CreateCardRequest request, CancellationToken ct)
+    public Task<CardDto> CreateAsync(Guid boardId, Guid listId, Guid userId, CreateCardRequest request, CancellationToken ct) =>
+        AppendCardAsync(boardId, listId, userId, request.Title, request.Description, request.DueDate, ct);
+
+    public async Task<CardDto> CreateFromTemplateAsync(
+        Guid boardId, Guid listId, Guid userId, CreateCardFromTemplateRequest request, CancellationToken ct)
+    {
+        // Scoped to the board, so a template id from another board is a 404, not a leak.
+        var template = await _db.CardTemplates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == request.TemplateId && t.BoardId == boardId, ct)
+            ?? throw new NotFoundAppException("Template not found.");
+
+        // The template's text is copied onto the card here and never consulted again — cards
+        // do not track the template they came from, so editing a template never rewrites history.
+        var title = string.IsNullOrWhiteSpace(request.Title) ? template.Title : request.Title;
+        return await AppendCardAsync(boardId, listId, userId, title, template.Description, dueDate: null, ct);
+    }
+
+    /// <summary>Adds a card at the end of a list. The one place a card comes into existence.</summary>
+    private async Task<CardDto> AppendCardAsync(
+        Guid boardId, Guid listId, Guid userId, string title, string? description, DateTimeOffset? dueDate, CancellationToken ct)
     {
         if (!await _db.Lists.AnyAsync(l => l.Id == listId && l.BoardId == boardId, ct))
             throw new NotFoundAppException("List not found.");
@@ -53,9 +74,9 @@ public class CardService : ICardService
         {
             Id = Guid.NewGuid(),
             ListId = listId,
-            Title = request.Title.Trim(),
-            Description = request.Description,
-            DueDate = request.DueDate,
+            Title = title.Trim(),
+            Description = description,
+            DueDate = dueDate,
             Rank = Rank.After(lastRank),
             CreatedById = userId
         };
