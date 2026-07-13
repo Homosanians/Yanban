@@ -207,6 +207,26 @@ public class AttachmentEndpointsTests
     }
 
     [Fact]
+    public async Task Attachment_AddressedUnderWrongCard_IsNotFound()
+    {
+        var client = NewClient();
+        var (token, _, _) = await RegisterAsync(client);
+        var board = await CreateBoardAsync(client, token);
+        var list = await CreateListAsync(client, token, board.Id);
+        var cardA = await CreateCardAsync(client, token, board.Id, list.Id);
+        var cardB = await CreateCardAsync(client, token, board.Id, list.Id);
+
+        var bytes = Encoding.UTF8.GetBytes("belongs to A");
+        var ticket = await RequestUploadAsync(client, token, board.Id, cardA.Id, "a.txt", "text/plain", bytes.Length);
+        await PutBytesAsync(ticket.UploadUrl, bytes, "text/plain");
+        await client.SendAsync(Authed(HttpMethod.Post, $"/boards/{board.Id}/cards/{cardA.Id}/attachments/{ticket.AttachmentId}/complete", token));
+
+        // The attachment belongs to card A; addressing it under card B must not resolve.
+        (await client.SendAsync(Authed(HttpMethod.Get, $"/boards/{board.Id}/cards/{cardB.Id}/attachments/{ticket.AttachmentId}/download", token)))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Attachments_RespectBoardPermissions()
     {
         var client = NewClient();

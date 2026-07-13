@@ -157,7 +157,10 @@ using (var scope = app.Services.CreateScope())
         {
             await services.GetRequiredService<IObjectStorage>().EnsureBucketAsync(CancellationToken.None);
         }
-        catch (Exception ex) when (ex is HttpRequestException or AmazonServiceException)
+        // AmazonClientException is the base of AmazonServiceException and wraps the
+        // connection-refused case (MinIO not running) — the realistic dev down-path —
+        // while staying specific enough not to swallow a config error or NRE.
+        catch (Exception ex) when (ex is HttpRequestException or AmazonClientException)
         {
             app.Logger.LogWarning(ex, "Object storage unreachable at startup; attachments are unavailable until it is up.");
         }
