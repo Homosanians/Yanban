@@ -12,7 +12,10 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.7" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.7" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="Npgsql" Version="10.0.3" />
+    <!-- Npgsql is NOT pinned here: it flows transitively from the provider the app itself uses,
+         so the tests always talk to the database through the same driver as production. Pinning
+         it (it was on 10.0.3 against a provider built for 9.x) is what made NpgsqlTsVector
+         unusable from this assembly. -->
     <PackageReference Include="Shouldly" Version="4.3.0" />
     <PackageReference Include="Testcontainers.Minio" Version="4.13.0" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />

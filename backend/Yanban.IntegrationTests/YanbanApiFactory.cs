@@ -15,12 +15,12 @@ namespace Yanban.IntegrationTests;
 /// </summary>
 public class YanbanApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
+    // The image goes to the constructor, not WithImage: the parameterless builders are
+    // obsolete in Testcontainers 4.x.
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine")
         .Build();
 
-    private readonly MinioContainer _minio = new MinioBuilder()
-        .WithImage("minio/minio:RELEASE.2023-01-31T02-24-19Z")
+    private readonly MinioContainer _minio = new MinioBuilder("minio/minio:RELEASE.2023-01-31T02-24-19Z")
         .Build();
 
     public string ConnectionString => _postgres.GetConnectionString();
