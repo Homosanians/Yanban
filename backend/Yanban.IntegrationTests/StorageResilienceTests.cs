@@ -30,7 +30,9 @@ public class StorageResilienceTests
             Timeout = TimeSpan.FromSeconds(5)
         };
         var s3 = new AmazonS3Client(new BasicAWSCredentials("key", "secret"), config);
-        var storage = new S3ObjectStorage(s3, Options.Create(new S3Options { Endpoint = deadEndpoint, Bucket = "b" }));
+        // No public endpoint configured, so the presign client is the same instance — exactly
+        // what DependencyInjection resolves in that case.
+        var storage = new S3ObjectStorage(s3, s3, Options.Create(new S3Options { Endpoint = deadEndpoint, Bucket = "b" }));
 
         // Mirrors the startup catch filter in Program.cs. Connection-refused surfaces here
         // as a raw HttpRequestException; the AmazonClientException arm covers the

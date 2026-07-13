@@ -11,6 +11,17 @@ public class S3Options
     /// <summary>Base URL the API uses to talk to storage, e.g. <c>http://localhost:9000</c>.</summary>
     public string Endpoint { get; set; } = "";
 
+    /// <summary>
+    /// Base URL a <i>browser</i> uses to reach storage, e.g. <c>http://localhost:9000</c> while the
+    /// API talks to <c>http://minio:9000</c> inside the Compose network. Presigned URLs are minted
+    /// against this, because the host is part of the signature and cannot be rewritten afterwards.
+    /// Empty means the browser and the API reach storage identically (ADR-10).
+    /// </summary>
+    public string PublicEndpoint { get; set; } = "";
+
+    /// <summary>The endpoint presigned URLs are signed for: <see cref="PublicEndpoint"/> if set, else <see cref="Endpoint"/>.</summary>
+    public string PresignEndpoint => string.IsNullOrWhiteSpace(PublicEndpoint) ? Endpoint : PublicEndpoint;
+
     public string AccessKey { get; set; } = "";
     public string SecretKey { get; set; } = "";
     public string Bucket { get; set; } = "yanban-attachments";

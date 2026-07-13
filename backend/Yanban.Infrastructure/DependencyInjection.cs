@@ -50,25 +50,33 @@ public static class DependencyInjection
         // The same table read as an outbox, by the realtime tailer (ADR-11).
         services.AddScoped<IActivityOutbox, ActivityOutbox>();
 
-        // Object storage (S3-compatible; MinIO in dev). One SDK client pointed at the
-        // configured endpoint with path-style addressing (required by MinIO). NOTE: the
-        // same endpoint is baked into presigned URLs — see ADR-10 for the split-horizon
-        // limitation when the API and the browser reach storage at different hosts.
+        // Object storage (S3-compatible; MinIO in dev), path-style addressing (required by MinIO).
+        //
+        // Two clients, one job each (ADR-10). The API reaches storage on the internal network
+        // (`minio:9000` under Compose), but a presigned URL handed to the browser must name a host
+        // the *browser* can reach (`localhost:9000`) — and the host is part of the SigV4 signature,
+        // so it cannot be swapped in afterwards.
+        //
+        // A client can sign for a host it cannot itself reach: presigning is a local signature
+        // computation, not a request. So the presign client never opens a socket, while every
+        // operation that does (bucket creation, HEAD, DELETE) stays on the internal client.
         services.Configure<S3Options>(configuration.GetSection(S3Options.SectionName));
-        services.AddSingleton<IAmazonS3>(sp =>
+        services.AddSingleton<IAmazonS3>(sp => S3ClientFactory.Create(S3Config(sp).Endpoint, S3Config(sp)));
+        services.AddKeyedSingleton<IAmazonS3>(S3ObjectStorage.PresignClientKey, (sp, _) =>
         {
-            var o = sp.GetRequiredService<IOptions<S3Options>>().Value;
-            var config = new AmazonS3Config
-            {
-                ServiceURL = o.Endpoint,
-                ForcePathStyle = true,
-                AuthenticationRegion = "us-east-1"
-            };
-            return new AmazonS3Client(new BasicAWSCredentials(o.AccessKey, o.SecretKey), config);
+            var o = S3Config(sp);
+            // No public endpoint => the API and the browser reach storage the same way (the
+            // "run the API on the host" case). Reuse the one client rather than build a twin.
+            return string.IsNullOrWhiteSpace(o.PublicEndpoint)
+                ? sp.GetRequiredService<IAmazonS3>()
+                : S3ClientFactory.Create(o.PublicEndpoint, o);
         });
         services.AddSingleton<IObjectStorage, S3ObjectStorage>();
         services.AddScoped<IAttachmentService, AttachmentService>();
 
         return services;
     }
+
+    private static S3Options S3Config(IServiceProvider sp) =>
+        sp.GetRequiredService<IOptions<S3Options>>().Value;
 }
