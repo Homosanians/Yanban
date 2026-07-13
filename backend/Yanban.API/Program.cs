@@ -1,9 +1,11 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Amazon.Runtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
@@ -142,8 +144,24 @@ var app = builder.Build();
 // Apply migrations on startup (dev convenience; Postgres must be reachable).
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<YanbanDbContext>();
-    db.Database.Migrate();
+    var services = scope.ServiceProvider;
+    services.GetRequiredService<YanbanDbContext>().Database.Migrate();
+
+    // Ensure the attachments bucket exists. Only attempted when storage is configured,
+    // and tolerant of it being unreachable so the API still boots (attachments simply
+    // stay unavailable until storage is up). A non-connectivity error still surfaces.
+    var s3 = services.GetRequiredService<IOptions<S3Options>>().Value;
+    if (!string.IsNullOrWhiteSpace(s3.Endpoint))
+    {
+        try
+        {
+            await services.GetRequiredService<IObjectStorage>().EnsureBucketAsync(CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or AmazonServiceException)
+        {
+            app.Logger.LogWarning(ex, "Object storage unreachable at startup; attachments are unavailable until it is up.");
+        }
+    }
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();

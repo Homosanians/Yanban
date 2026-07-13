@@ -36,6 +36,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      minio:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
@@ -43,6 +45,16 @@ services:
       Jwt__Secret: "dev-only-change-me-super-secret-signing-key-min-32-bytes-long"
       Jwt__Issuer: "yanban"
       Jwt__Audience: "yanban"
+      # The API reaches MinIO at the in-network host `minio`, and that host is baked into
+      # the presigned URLs it issues — so a browser on your machine cannot follow them
+      # (it would need `localhost:9000`). This "split-horizon" case is a documented
+      # known-limitation (README ADR-10). For attachment work run the API on the host
+      # (`dotnet run`) against `docker compose up -d postgres minio`, where both sides
+      # use `localhost:9000` and presigned URLs just work.
+      S3__Endpoint: "http://minio:9000"
+      S3__AccessKey: "minioadmin"
+      S3__SecretKey: "minioadmin"
+      S3__Bucket: "yanban-attachments"
     ports:
       - "8081:8080"
 

@@ -12,4 +12,5 @@ public static class ActivityEntityTypes
     public const string Card = "Card";
     public const string Comment = "Comment";
     public const string Member = "Member";
+    public const string Attachment = "Attachment";
 }
