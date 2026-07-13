@@ -43,6 +43,8 @@ public static class DependencyInjection
         // Scoped so it shares the request DbContext with the services it audits — that
         // shared unit of work is what makes each audit row commit with its mutation.
         services.AddScoped<IActivityRecorder, ActivityRecorder>();
+        // The same table read as an outbox, by the realtime tailer (ADR-11).
+        services.AddScoped<IActivityOutbox, ActivityOutbox>();
 
         // Object storage (S3-compatible; MinIO in dev). One SDK client pointed at the
         // configured endpoint with path-style addressing (required by MinIO). NOTE: the

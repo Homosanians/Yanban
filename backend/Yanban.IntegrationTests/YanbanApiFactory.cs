@@ -37,6 +37,10 @@ public class YanbanApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("Jwt__AccessTokenMinutes", "15");
         Environment.SetEnvironmentVariable("Jwt__RefreshTokenDays", "30");
 
+        // Poll the outbox hard so realtime tests do not wait on a 500ms tick. The grace
+        // window is left at its default — the out-of-order test depends on its real value.
+        Environment.SetEnvironmentVariable("Realtime__PollIntervalMs", "100");
+
         Environment.SetEnvironmentVariable("S3__Endpoint", _minio.GetConnectionString());
         Environment.SetEnvironmentVariable("S3__AccessKey", _minio.GetAccessKey());
         Environment.SetEnvironmentVariable("S3__SecretKey", _minio.GetSecretKey());

@@ -12,6 +12,7 @@ using Scalar.AspNetCore;
 using Yanban.API.Authorization;
 using Yanban.API.Identity;
 using Yanban.API.Middleware;
+using Yanban.API.Realtime;
 using Yanban.Application.Abstractions;
 using Yanban.Application.Common;
 using Yanban.Infrastructure;
@@ -51,6 +52,14 @@ builder.Services.AddOpenApi(options =>
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
+// Realtime (M7). The hub only gates who may listen; the hosted tailer does the sending,
+// reading the ActivityLog written by M5 as an outbox. No SignalR backplane on purpose —
+// see ADR-11.
+builder.Services.Configure<RealtimeOptions>(builder.Configuration.GetSection(RealtimeOptions.SectionName));
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<BoardSubscriptionRegistry>();
+builder.Services.AddHostedService<ActivityDispatcher>();
+
 // Ambient caller identity for audit trails. The accessor exposes the request's
 // principal; ICurrentUser reads its sub claim so Infrastructure can record "who did
 // it" without taking a dependency on HttpContext.
@@ -85,6 +94,19 @@ builder.Services
         // TokenVersion (cached ~60s, invalidated on logout-all).
         options.Events = new JwtBearerEvents
         {
+            // A browser cannot set an Authorization header on a WebSocket handshake, so the
+            // SignalR client puts the token in the query string instead. Honor it only under
+            // /hubs: tokens in URLs leak into access logs, proxies and referrers, and the
+            // REST API has no reason to accept one.
+            OnMessageReceived = context =>
+            {
+                var token = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(token) && context.Request.Path.StartsWithSegments("/hubs"))
+                    context.Token = token;
+
+                return Task.CompletedTask;
+            },
+
             OnTokenValidated = async context =>
             {
                 var services = context.HttpContext.RequestServices;
@@ -181,6 +203,7 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<BoardHub>("/hubs/board");
 
 app.Run();
 
