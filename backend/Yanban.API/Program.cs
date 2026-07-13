@@ -134,7 +134,19 @@ builder.Services
                     TimeSpan.FromSeconds(60));
 
                 if (current < 0 || current != tokenVersion)
+                {
                     context.Fail("Token has been revoked.");
+                    return;
+                }
+
+                // Stamp the ticket with the token's own expiry. A REST call re-authenticates
+                // on every request, but a WebSocket authenticates once at the handshake — so
+                // without this, a live hub connection would outlive its token indefinitely
+                // (verified: it kept receiving events straight through a logout-all). SignalR's
+                // CloseOnAuthenticationExpiration reads this to hang up at expiry. JwtBearer
+                // does not set it on its own.
+                context.Properties.ExpiresUtc =
+                    new DateTimeOffset(DateTime.SpecifyKind(context.SecurityToken.ValidTo, DateTimeKind.Utc));
             }
         };
     });
@@ -203,7 +215,13 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHub<BoardHub>("/hubs/board");
+app.MapHub<BoardHub>("/hubs/board", options =>
+{
+    // A hub is authorized once, at the handshake. Close the connection when the access
+    // token expires so a socket cannot outlive the credential that opened it — this is
+    // what bounds how long a revoked session (logout-all) can keep watching a board.
+    options.CloseOnAuthenticationExpiration = true;
+});
 
 app.Run();
 
