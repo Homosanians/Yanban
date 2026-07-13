@@ -21,6 +21,8 @@ export function TemplatesPanel({ boardId, writable, onClose }: Props) {
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  // Empty until the user picks one; `listId` below resolves that to the shown default. Anything
+  // that acts on the selection must use `listId`, not this — they differ until the first change.
   const [targetList, setTargetList] = useState("");
 
   const templates = useQuery({
@@ -28,6 +30,9 @@ export function TemplatesPanel({ boardId, writable, onClose }: Props) {
     queryFn: () => listTemplates(boardId),
   });
   const lists = useQuery({ queryKey: contentKeys.lists(boardId), queryFn: () => listLists(boardId) });
+
+  // The list the dropdown is actually showing: the user's pick, or the first list as the default.
+  const listId = targetList || lists.data?.[0]?.id || "";
 
   const add = useMutation({
     mutationFn: () =>
@@ -52,7 +57,7 @@ export function TemplatesPanel({ boardId, writable, onClose }: Props) {
   // A template is a blueprint stamped onto a new card, not a live link: editing it later never
   // rewrites cards already made from it (ADR-12).
   const apply = useMutation({
-    mutationFn: (templateId: string) => createCardFromTemplate(boardId, targetList, templateId),
+    mutationFn: (templateId: string) => createCardFromTemplate(boardId, listId, templateId),
     onSuccess: (card) =>
       void queryClient.invalidateQueries({ queryKey: contentKeys.cards(boardId, card.listId) }),
   });
@@ -61,8 +66,6 @@ export function TemplatesPanel({ boardId, writable, onClose }: Props) {
     e.preventDefault();
     if (name.trim() && title.trim()) add.mutate();
   };
-
-  const listId = targetList || lists.data?.[0]?.id || "";
 
   return (
     <aside className="panel">
