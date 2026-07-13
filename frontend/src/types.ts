@@ -1,3 +1,6 @@
+// Mirrors of the API's DTOs. Enums cross the wire as names (the API registers
+// JsonStringEnumConverter), so this side speaks "Admin", not 2.
+
 export interface AccessTokenResponse {
   accessToken: string;
   accessTokenExpiresAt: string;
@@ -8,3 +11,114 @@ export interface User {
   email: string;
   displayName: string;
 }
+
+export type BoardRole = "Viewer" | "Editor" | "Admin";
+
+export interface Board {
+  id: string;
+  name: string;
+  ownerId: string;
+  archived: boolean;
+  createdAt: string;
+  /** The *calling* user's role on this board — what the UI gates on. */
+  role: BoardRole;
+}
+
+export interface BoardMember {
+  userId: string;
+  email: string;
+  displayName: string;
+  role: BoardRole;
+}
+
+export interface BoardList {
+  id: string;
+  boardId: string;
+  name: string;
+  rank: string;
+}
+
+export interface Card {
+  id: string;
+  listId: string;
+  title: string;
+  description: string | null;
+  dueDate: string | null;
+  rank: string;
+  /** Postgres xmin. Echoed back as If-Match to update the card — see ADR-13. */
+  version: number;
+  assigneeId: string | null;
+}
+
+export interface Comment {
+  id: string;
+  cardId: string;
+  authorId: string;
+  authorDisplayName: string;
+  body: string;
+  createdAt: string;
+  editedAt: string | null;
+}
+
+export interface Attachment {
+  id: string;
+  cardId: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedById: string;
+  createdAt: string;
+}
+
+export interface UploadTicket {
+  attachmentId: string;
+  method: string;
+  uploadUrl: string;
+  contentType: string;
+  expiresAt: string;
+}
+
+export interface DownloadUrl {
+  downloadUrl: string;
+  expiresAt: string;
+}
+
+export interface CardSearchHit {
+  id: string;
+  listId: string;
+  listName: string;
+  title: string;
+  description: string | null;
+  dueDate: string | null;
+  assigneeId: string | null;
+}
+
+export interface CardTemplate {
+  id: string;
+  boardId: string;
+  name: string;
+  title: string;
+  description: string | null;
+  createdAt: string;
+}
+
+/** What the server logs and what it pushes over the hub are the same shape (ADR-11). */
+export interface Activity {
+  sequence: number;
+  boardId: string;
+  actorId: string;
+  actorDisplayName: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  summary: string | null;
+  createdAt: string;
+}
+
+/** Ascending order of power — for role pickers. */
+export const BOARD_ROLES: BoardRole[] = ["Viewer", "Editor", "Admin"];
+
+// The UI hides what the API would 403 anyway. These are a courtesy, not a control:
+// the server re-decides every one of them.
+export const canWrite = (role: BoardRole): boolean => role === "Editor" || role === "Admin";
+export const canAdmin = (role: BoardRole): boolean => role === "Admin";

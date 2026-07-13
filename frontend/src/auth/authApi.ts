@@ -7,7 +7,7 @@ export async function register(email: string, password: string, displayName: str
     body: { email, password, displayName },
     auth: false,
   });
-  setAccessToken(res.accessToken);
+  setAccessToken(res.accessToken, res.accessTokenExpiresAt);
 }
 
 export async function login(email: string, password: string): Promise<void> {
@@ -16,7 +16,7 @@ export async function login(email: string, password: string): Promise<void> {
     body: { email, password },
     auth: false,
   });
-  setAccessToken(res.accessToken);
+  setAccessToken(res.accessToken, res.accessTokenExpiresAt);
 }
 
 export async function logout(): Promise<void> {
