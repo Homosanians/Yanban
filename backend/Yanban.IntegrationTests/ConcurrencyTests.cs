@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -8,10 +9,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Npgsql;
 using Shouldly;
 using Xunit;
+using Yanban.Application.Activities;
+using Yanban.Application.Attachments;
 using Yanban.Application.Auth;
 using Yanban.Application.Boards;
 using Yanban.Application.Cards;
 using Yanban.Application.Lists;
+using Yanban.Domain.Entities;
 
 namespace Yanban.IntegrationTests;
 
@@ -274,5 +278,63 @@ public class ConcurrencyTests
 
         responses.Count(r => r.StatusCode == HttpStatusCode.OK).ShouldBe(1);
         responses.Count(r => r.StatusCode == HttpStatusCode.PreconditionFailed).ShouldBe(editors - 1);
+    }
+
+    // ---------------------------------------------------------------- attachment completion
+
+    /// <summary>
+    /// Completing an upload twice is legitimate — a client whose response was dropped will retry,
+    /// and <c>CompleteAsync</c> returns early if the attachment is already Ready. But that guard
+    /// is a check-then-write with nothing holding it together, and <c>attachments</c> carries no
+    /// xmin token, so nothing makes a second concurrent save lose: both callers read Pending, both
+    /// pass the size check, and <b>both write an audit row</b>. One upload, two "Attached …" events
+    /// — which the outbox tailer then fans out to every client watching the board (M7).
+    ///
+    /// <para>Idempotent must mean idempotent in its *effects*, not just its status code.</para>
+    /// </summary>
+    [Fact]
+    public async Task ConcurrentCompleteOnOneAttachment_RecordsASingleActivityRow()
+    {
+        var client = NewClient();
+        var (token, _, _) = await RegisterAsync(client);
+        var board = await CreateBoardAsync(client, token);
+        var list = await CreateListAsync(client, token, board.Id);
+        var card = await CreateCardAsync(client, token, board.Id, list.Id);
+
+        var bytes = Encoding.UTF8.GetBytes("completed more than once");
+        const string contentType = "text/plain";
+
+        var slot = await client.SendAsync(Authed(HttpMethod.Post, $"/boards/{board.Id}/cards/{card.Id}/attachments",
+            token, new { fileName = "note.txt", contentType, sizeBytes = bytes.Length }));
+        slot.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var ticket = (await slot.Content.ReadFromJsonAsync<UploadTicketDto>(Json))!;
+
+        using (var raw = new HttpClient())
+        {
+            var content = new ByteArrayContent(bytes) { Headers = { ContentType = new MediaTypeHeaderValue(contentType) } };
+            (await raw.PutAsync(ticket.UploadUrl, content)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        // The retry storm: several completes for the same upload, at once.
+        const int callers = 5;
+        var responses = await Task.WhenAll(Enumerable.Range(0, callers).Select(_ =>
+            client.SendAsync(Authed(HttpMethod.Post,
+                $"/boards/{board.Id}/cards/{card.Id}/attachments/{ticket.AttachmentId}/complete", token))));
+
+        // Every caller is told the truth — the attachment is ready. Punishing the retry would be
+        // the wrong fix; the duplicate *audit row* is the bug.
+        responses.ShouldAllBe(r => r.StatusCode == HttpStatusCode.OK);
+
+        var feed = await client.SendAsync(Authed(HttpMethod.Get, $"/boards/{board.Id}/activity", token));
+        feed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var activity = (await feed.Content.ReadFromJsonAsync<IReadOnlyList<ActivityDto>>(Json))!;
+
+        activity.Count(a => a.EntityType == ActivityEntityTypes.Attachment && a.EntityId == ticket.AttachmentId)
+            .ShouldBe(1, "one upload is one event, however many times the client asks to complete it");
+
+        // And only one attachment exists, not one per caller.
+        var listed = await client.SendAsync(Authed(HttpMethod.Get,
+            $"/boards/{board.Id}/cards/{card.Id}/attachments", token));
+        (await listed.Content.ReadFromJsonAsync<IReadOnlyList<AttachmentDto>>(Json))!.Count.ShouldBe(1);
     }
 }

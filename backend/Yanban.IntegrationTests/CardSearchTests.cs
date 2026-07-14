@@ -16,8 +16,9 @@ using Yanban.Application.Templates;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// Full-text search (ADR-12). Everything is asserted through the HTTP API — the tsvector is
-/// never touched from here, which keeps the test assembly's Npgsql version skew irrelevant.
+/// Full-text search (ADR-12). Everything is asserted through the HTTP API: the tsvector is a
+/// storage detail, and a test that reached for it would be pinning the implementation rather
+/// than the behaviour clients actually get.
 /// </summary>
 [Collection("api")]
 public class CardSearchTests

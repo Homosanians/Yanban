@@ -58,11 +58,50 @@ public class AttachmentService : IAttachmentService
         return new UploadTicketDto(id, "PUT", url, attachment.ContentType, expiresAt);
     }
 
+    /// <summary>
+    /// Confirms an upload landed and flips the attachment to Ready. Idempotent: a client whose
+    /// response was dropped will retry, and retrying must not be punished.
+    ///
+    /// <para>Serialized on the attachment row (ADR-14). "Already Ready? return early" is a
+    /// check-then-write, and <c>attachments</c> carries no <c>xmin</c> token, so nothing made a
+    /// second concurrent caller lose: both read Pending, both passed the size check, and both
+    /// wrote an audit row. One upload produced several "Attached …" events — which the outbox
+    /// tailer then fanned out to every client watching the board. Measured, not theorized.</para>
+    ///
+    /// <para>Idempotent has to mean idempotent in its <i>effects</i>, not just in its status code.</para>
+    /// </summary>
     public async Task<AttachmentDto> CompleteAsync(Guid boardId, Guid cardId, Guid attachmentId, CancellationToken ct)
     {
-        var attachment = await FindAsync(boardId, cardId, attachmentId, ct);
+        // Scope + 404 check, deliberately *not* materializing a tracked entity: the tracking load
+        // happens under the lock below. Using FindAsync here would defeat the whole fix — EF hands
+        // an already-tracked instance straight back from the change tracker rather than overwriting
+        // it with fresh column values, so the post-lock re-read would silently return the stale
+        // Pending status and every caller would still write an audit row. (Measured: it did.)
+        var exists = await _db.Attachments.AnyAsync(
+            a => a.Id == attachmentId && a.CardId == cardId && a.Card.List.BoardId == boardId, ct);
+        if (!exists)
+            throw new NotFoundAppException("Attachment not found.");
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        // `attachments` has no concurrency token, so SELECT * is safe for FromSql, and ToListAsync
+        // runs the statement verbatim so FOR UPDATE stays at the top level (the idiom already used
+        // by CardService.MoveAsync and AuthService.RefreshAsync).
+        var locked = await _db.Attachments
+            .FromSql($"SELECT * FROM attachments WHERE id = {attachmentId} FOR UPDATE")
+            .ToListAsync(ct);
+        if (locked.Count == 0)
+            throw new NotFoundAppException("Attachment not found.");
+
+        var attachment = locked[0];
+
+        // Re-read the status *after* the lock: the caller that queued behind the winner wakes up
+        // here, sees Ready, and takes the early return — one row, one event.
         if (attachment.Status == AttachmentStatus.Ready)
-            return ToDto(attachment); // idempotent
+        {
+            await tx.CommitAsync(ct);
+            return ToDto(attachment);
+        }
 
         // The API never saw the bytes, so trust nothing: the object must actually exist
         // and its real size must match what the client declared up front.
@@ -75,6 +114,7 @@ public class AttachmentService : IAttachmentService
         attachment.Status = AttachmentStatus.Ready;
         _activity.Record(boardId, ActivityAction.Created, ActivityEntityTypes.Attachment, attachmentId, $"Attached \"{attachment.FileName}\"");
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         return ToDto(attachment);
     }
