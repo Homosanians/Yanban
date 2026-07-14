@@ -179,6 +179,16 @@ public class CardService : ICardService
 
     public async Task<CardDto> AssignAsync(Guid boardId, Guid cardId, Guid? assigneeId, CancellationToken ct)
     {
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        // Lock the board before checking membership, so the check and the write cannot straddle
+        // a concurrent removal (ADR-14). Without this, BoardService.RemoveMemberAsync can delete
+        // the membership and sweep the assignments in the gap between them — the check sees a
+        // member who is already gone, and the write lands after the sweep, stranding the card on
+        // a non-member. The removal takes this same lock first, so the two serialize; both take
+        // the board before any card, so they cannot deadlock.
+        await _db.Boards.FromSql($"SELECT * FROM boards WHERE id = {boardId} FOR UPDATE").ToListAsync(ct);
+
         var card = await FindCardAsync(boardId, cardId, ct);
 
         if (assigneeId is Guid userId)
@@ -196,6 +206,7 @@ public class CardService : ICardService
         // No client If-Match here (assignment is a low-contention scalar), but the card's
         // xmin token still guards the tracked save against a lost update -> rare 409.
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         return ToDto(card);
     }

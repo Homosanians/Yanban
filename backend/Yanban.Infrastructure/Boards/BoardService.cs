@@ -145,6 +145,17 @@ public class BoardService : IBoardService
         // one transaction with the removal so a card can never point at a non-member.
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
+        // The transaction alone does NOT hold that invariant, which is the whole point of the
+        // lock (ADR-14). An assignment on another connection reads membership without blocking
+        // (READ COMMITTED), so it can see this not-yet-committed member as present, pass its
+        // check, and then write *after* the sweep below has already run — leaving exactly the
+        // dangling assignee this method exists to prevent. Verified: without this lock, the
+        // forced-interleaving test leaves a card assigned to a removed member.
+        //
+        // CardService.AssignAsync takes the same board lock, so the two serialize and whichever
+        // loses re-reads the truth. Both take the board first, so they cannot deadlock.
+        await _db.Boards.FromSql($"SELECT * FROM boards WHERE id = {boardId} FOR UPDATE").ToListAsync(ct);
+
         _db.BoardMembers.Remove(member);
         _activity.Record(boardId, ActivityAction.Deleted, ActivityEntityTypes.Member, targetUserId, "Removed from board");
         await _db.SaveChangesAsync(ct);

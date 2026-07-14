@@ -69,34 +69,74 @@ public class AuthService : IAuthService
         return response;
     }
 
+    /// <summary>
+    /// Rotates a refresh token: the presented one is spent and a successor is issued.
+    ///
+    /// <para>Serialized on the <b>user row</b> (ADR-14). Rotation is read-then-write across
+    /// several statements — check the token is live, revoke it, mint its successor — and with
+    /// nothing holding those together, concurrent callers presenting the <i>same</i> token each
+    /// saw it live and each won: one token minted several live families, and reuse detection
+    /// never fired. Measured, not theorized: 4 of 6 racers got a 200.</para>
+    ///
+    /// <para>The lock is on the user, not the token, because <see cref="LogoutAllAsync"/> mutates
+    /// the same session state and takes the same lock first. Locking the token row instead would
+    /// have the two paths grabbing the user and token rows in opposite orders — a deadlock.</para>
+    /// </summary>
     public async Task<AuthResponse> RefreshAsync(string refreshToken, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(refreshToken))
             throw new UnauthorizedAppException("Missing refresh token.");
 
         var hash = HashRefreshToken(refreshToken);
-        var existing = await _db.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
-        if (existing is null)
+
+        // Unlocked, and only to learn whose session state to lock. Nothing is decided on it.
+        var ownerId = await _db.RefreshTokens
+            .AsNoTracking()
+            .Where(t => t.TokenHash == hash)
+            .Select(t => (Guid?)t.UserId)
+            .FirstOrDefaultAsync(ct);
+        if (ownerId is null)
             throw new UnauthorizedAppException("Invalid refresh token.");
 
-        // Reuse detection: a revoked token being presented signals theft.
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        // `users` has no concurrency token, so SELECT * is safe for FromSql, and ToListAsync
+        // runs the statement verbatim so FOR UPDATE stays at the top level (same idiom as the
+        // target-list lock in CardService.MoveAsync).
+        var locked = await _db.Users
+            .FromSql($"SELECT * FROM users WHERE id = {ownerId} FOR UPDATE")
+            .ToListAsync(ct);
+        if (locked.Count == 0)
+            throw new UnauthorizedAppException("Invalid refresh token.");
+
+        var user = locked[0];
+
+        // Read the token *after* the lock: a caller that queued behind another rotation wakes up
+        // and sees what actually committed, not the snapshot it arrived with.
+        var existing = await _db.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == hash, ct)
+            ?? throw new UnauthorizedAppException("Invalid refresh token.");
+
+        // Reuse detection: a revoked token being presented signals theft. This is now also where
+        // the loser of a concurrent rotation lands — it presented a token that, by the time it
+        // held the lock, had already been spent. Strict by choice: the family burns, including
+        // the successor the winner was just handed (ADR-14).
         if (existing.RevokedAt is not null)
         {
             await RevokeAllRefreshTokensAsync(existing.UserId, ct);
+            // Commit before throwing: the revocation is the whole point, and an exception would
+            // otherwise roll the transaction back and leave the stolen family alive.
+            await tx.CommitAsync(ct);
             throw new UnauthorizedAppException("Refresh token reuse detected. All sessions were revoked.");
         }
 
         if (existing.ExpiresAt <= DateTimeOffset.UtcNow)
             throw new UnauthorizedAppException("Refresh token expired.");
 
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == existing.UserId, ct);
-        if (user is null)
-            throw new UnauthorizedAppException("Invalid refresh token.");
-
         var (response, newToken) = IssueTokens(user);
         existing.RevokedAt = DateTimeOffset.UtcNow;
         existing.ReplacedByTokenId = newToken.Id;
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return response;
     }
 
@@ -115,15 +155,33 @@ public class AuthService : IAuthService
         await _db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Kills every session: bumps TokenVersion (which invalidates outstanding access tokens on
+    /// their next request) and revokes every live refresh token.
+    ///
+    /// <para>Takes the <b>same user-row lock</b> as <see cref="RefreshAsync"/>, and for the same
+    /// reason. Without it, a rotation already in flight could commit its brand-new refresh token
+    /// *after* the revoke-all had swept the table — a session that quietly survives "log out
+    /// everywhere". With the lock, the two orderings are the only two possible, and both are
+    /// safe: the rotation either finishes first (and its successor is then revoked) or wakes to
+    /// find its token already dead.</para>
+    /// </summary>
     public async Task LogoutAllAsync(Guid userId, CancellationToken ct)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-        if (user is null)
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        var locked = await _db.Users
+            .FromSql($"SELECT * FROM users WHERE id = {userId} FOR UPDATE")
+            .ToListAsync(ct);
+        if (locked.Count == 0)
             throw new NotFoundAppException("User not found.");
 
+        var user = locked[0];
         user.TokenVersion += 1;
         await RevokeAllRefreshTokensAsync(userId, ct);
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
         _cache.Remove(TokenVersionCacheKey(userId));
     }
 
