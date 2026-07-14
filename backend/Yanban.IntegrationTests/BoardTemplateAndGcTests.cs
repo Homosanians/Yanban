@@ -24,7 +24,7 @@ namespace Yanban.IntegrationTests;
 /// <para>The load-bearing test is <see cref="DeletingABoard_EnqueuesEveryAttachmentsObject"/>: it
 /// deletes a *board* and asserts the object_deletions queue holds the key of an attachment two
 /// levels down (board → list → card → attachment). That path is a Postgres cascade the application
-/// never sees, so only a database trigger can catch it — which is the whole argument of ADR-18.</para>
+/// never sees, so only a database trigger can catch it — which is the whole argument of ADR-20.</para>
 /// </summary>
 [Collection("api")]
 public class BoardTemplateAndGcTests

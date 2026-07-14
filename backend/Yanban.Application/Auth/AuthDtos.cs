@@ -26,7 +26,7 @@ public record AccessTokenResponse(string AccessToken, DateTimeOffset AccessToken
 
 /// <summary>
 /// <paramref name="EmailConfirmed"/> drives the nag banner. An unconfirmed account is fully
-/// usable — this is a prompt, not a gate (ADR-16).
+/// usable — this is a prompt, not a gate (ADR-17).
 /// </summary>
 public record UserDto(Guid Id, string Email, string DisplayName, bool EmailConfirmed);
 

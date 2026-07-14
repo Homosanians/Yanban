@@ -9,7 +9,7 @@ using Yanban.Infrastructure.Persistence;
 namespace Yanban.Infrastructure.Storage;
 
 /// <summary>
-/// Keeps object storage honest (ADR-18). Two jobs, both draining a queue the database fills:
+/// Keeps object storage honest (ADR-20). Two jobs, both draining a queue the database fills:
 ///
 /// <list type="number">
 /// <item><b>Deletes orphaned objects.</b> An <c>AFTER DELETE ON attachments</c> trigger enqueues

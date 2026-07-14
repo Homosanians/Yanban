@@ -119,7 +119,7 @@ public class StorageJanitorTests
             (await storage.TryGetObjectSizeAsync(storageKey, CancellationToken.None)).ShouldBe(bytes.Length);
         }
 
-        // Delete the attachment via the API — no S3 call happens here anymore (ADR-18); the trigger
+        // Delete the attachment via the API — no S3 call happens here anymore (ADR-20); the trigger
         // just enqueues the object.
         (await client.SendAsync(Authed(HttpMethod.Delete,
             $"/boards/{board.Id}/cards/{card.Id}/attachments/{ticket.AttachmentId}", token)))

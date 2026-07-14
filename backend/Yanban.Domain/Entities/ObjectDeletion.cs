@@ -7,7 +7,7 @@ namespace Yanban.Domain.Entities;
 /// by application code. The rows are removed by Postgres cascade when a card, list or board is
 /// deleted, so the application never sees them and cannot enqueue their objects. The database does
 /// the cascade, so the database has to do the enqueue; that is the only way to catch every path,
-/// including a manual <c>DELETE</c> in psql. See ADR-18.</para>
+/// including a manual <c>DELETE</c> in psql. See ADR-20.</para>
 ///
 /// <para>Drained by the same worker, with the same <c>FOR UPDATE SKIP LOCKED</c> claim as the
 /// notification outbox.</para>

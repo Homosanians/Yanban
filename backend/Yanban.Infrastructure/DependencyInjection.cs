@@ -55,7 +55,7 @@ public static class DependencyInjection
 
         // Email notifications. Scoped for the same reason the recorder is: the outbox row has to
         // land in the mutation's own unit of work, or we would be promising to send mail about
-        // changes that never committed (ADR-16).
+        // changes that never committed (ADR-17).
         services.AddScoped<INotificationPreferenceService, NotificationPreferenceService>();
         services.AddScoped<INotificationOutbox, NotificationOutbox>();
 
@@ -84,7 +84,7 @@ public static class DependencyInjection
 
         // The quota is the same for every board today, so the policy is a singleton over options.
         // The *interface* is what matters: a per-board or per-plan policy replaces this without
-        // AttachmentService knowing (ADR-17).
+        // AttachmentService knowing (ADR-19).
         services.Configure<QuotaOptions>(configuration.GetSection(QuotaOptions.SectionName));
         services.AddSingleton<IBoardQuotaPolicy, ConfiguredBoardQuotaPolicy>();
         services.AddScoped<IAttachmentService, AttachmentService>();

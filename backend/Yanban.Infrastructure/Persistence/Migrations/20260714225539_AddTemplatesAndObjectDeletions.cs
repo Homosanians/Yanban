@@ -35,7 +35,7 @@ namespace Yanban.Infrastructure.Persistence.Migrations
                 column: "enqueued_at",
                 filter: "deleted_at IS NULL");
 
-            // The heart of the storage GC (ADR-18). Every attachment row that dies — by app delete,
+            // The heart of the storage GC (ADR-20). Every attachment row that dies — by app delete,
             // by cascade from a card/list/board, or by a manual DELETE in psql — enqueues its object
             // for the worker to remove from S3, in the *same transaction* as the delete. Because it
             // is the database doing the cascade, it must be the database doing the enqueue: nothing

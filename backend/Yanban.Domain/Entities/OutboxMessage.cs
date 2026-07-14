@@ -4,7 +4,7 @@ namespace Yanban.Domain.Entities;
 
 /// <summary>
 /// A transactional outbox row: one email that *will* be sent, written in the same transaction as
-/// the change that caused it (ADR-8's rule, applied a second time — see ADR-16).
+/// the change that caused it (ADR-8's rule, applied a second time — see ADR-17).
 ///
 /// <para>Separate from <see cref="ActivityLog"/> on purpose. A signup confirmation has no board,
 /// so it could never be an activity row; and <c>activity_logs</c> is the realtime tailer's hot

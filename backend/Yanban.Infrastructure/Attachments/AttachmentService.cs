@@ -221,7 +221,7 @@ public class AttachmentService : IAttachmentService
     {
         var attachment = await FindAsync(boardId, cardId, attachmentId, ct);
 
-        // No S3 call here anymore (ADR-18). Removing the row fires an AFTER DELETE trigger that
+        // No S3 call here anymore (ADR-20). Removing the row fires an AFTER DELETE trigger that
         // queues the object for the worker to delete — the *same* path a cascade takes when a card
         // or board is deleted out from under this service. Two paths deleting the same object (a
         // direct S3 call here, plus the trigger's queue) would mean deleting it twice; one path is
