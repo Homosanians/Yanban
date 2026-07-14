@@ -4,7 +4,24 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>Yanban</title>
+    <script>
+      // Runs before first paint, so a dark-mode user never eats a white flash: React mounting a
+      // moment later is far too late to decide this. Mirrors ThemeProvider — "system" is stored
+      // as the *absence* of a key, so an unset preference falls through to the OS.
+      (function () {
+        try {
+          var stored = localStorage.getItem("yanban.theme");
+          var dark =
+            stored === "dark" ||
+            (stored !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        } catch {
+          // Private mode can throw on localStorage. A missing preference is not worth a blank page.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

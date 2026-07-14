@@ -1,11 +1,13 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { contentKeys, createCard, deleteList, renameList } from "../api/board-content";
 import type { BoardList, BoardMember, Card } from "../types";
 import { CardTile } from "./CardTile";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 interface Props {
   boardId: string;
@@ -13,15 +15,19 @@ interface Props {
   cards: Card[];
   members: BoardMember[];
   writable: boolean;
-  draggingId: string | null;
   onOpenCard: (cardId: string) => void;
+  onHoverCard: (cardId: string | null) => void;
 }
 
-export function ListColumn({ boardId, list, cards, members, writable, draggingId, onOpenCard }: Props) {
+export function ListColumn({
+  boardId, list, cards, members, writable, onOpenCard, onHoverCard,
+}: Props) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
+  const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(list.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // The column itself is a drop target, so a card can be dropped into a list that has no
   // cards to aim at.
@@ -45,12 +51,26 @@ export function ListColumn({ boardId, list, cards, members, writable, draggingId
 
   const remove = useMutation({
     mutationFn: () => deleteList(boardId, list.id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: contentKeys.lists(boardId) }),
+    onSuccess: () => {
+      setConfirmDelete(false);
+      void queryClient.invalidateQueries({ queryKey: contentKeys.lists(boardId) });
+    },
   });
 
-  const onAdd = (e: FormEvent) => {
-    e.preventDefault();
-    if (title.trim()) add.mutate(title.trim());
+  const submitCard = () => {
+    if (!title.trim()) return;
+    add.mutate(title.trim());
+    // Stay open: adding one card is almost always adding three.
+  };
+
+  const onCardKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submitCard();
+    } else if (e.key === "Escape") {
+      setAdding(false);
+      setTitle("");
+    }
   };
 
   const onRename = (e: FormEvent) => {
@@ -62,10 +82,15 @@ export function ListColumn({ boardId, list, cards, members, writable, draggingId
     <section className={isOver ? "column over" : "column"} ref={setNodeRef}>
       <header className="column-head">
         {renaming ? (
-          <form onSubmit={onRename} className="row">
-            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} autoFocus />
-            <button type="submit">Save</button>
-            <button type="button" className="ghost" onClick={() => setRenaming(false)}>Cancel</button>
+          <form onSubmit={onRename}>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => setRenaming(false)}
+              onKeyDown={(e) => e.key === "Escape" && setRenaming(false)}
+              maxLength={200}
+              autoFocus
+            />
           </form>
         ) : (
           <>
@@ -73,8 +98,22 @@ export function ListColumn({ boardId, list, cards, members, writable, draggingId
             <span className="count">{cards.length}</span>
             {writable && (
               <span className="actions">
-                <button className="ghost" onClick={() => setRenaming(true)}>Rename</button>
-                <button className="ghost danger" onClick={() => remove.mutate()}>Delete</button>
+                <button
+                  className="icon-btn"
+                  aria-label={`Rename ${list.name}`}
+                  title="Rename list"
+                  onClick={() => { setName(list.name); setRenaming(true); }}
+                >
+                  <Pencil size={14} />
+                </button>
+                <button
+                  className="icon-btn danger"
+                  aria-label={`Delete ${list.name}`}
+                  title="Delete list"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash2 size={14} />
+                </button>
               </span>
             )}
           </>
@@ -89,23 +128,53 @@ export function ListColumn({ boardId, list, cards, members, writable, draggingId
               card={card}
               members={members}
               draggable={writable}
-              dragging={draggingId === card.id}
               onOpen={() => onOpenCard(card.id)}
+              onHover={onHoverCard}
             />
           ))}
         </div>
       </SortableContext>
 
-      {writable && (
-        <form className="add-card" onSubmit={onAdd}>
-          <input
+      {writable && (adding ? (
+        <div className="add-form">
+          <textarea
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Add a card"
+            onKeyDown={onCardKeyDown}
+            placeholder="What needs doing?"
+            rows={2}
             maxLength={500}
+            autoFocus
           />
-          <button type="submit" disabled={!title.trim()}>Add</button>
-        </form>
+          <div className="row">
+            <button type="button" onClick={submitCard} disabled={!title.trim() || add.isPending}>
+              Add card
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => { setAdding(false); setTitle(""); }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button className="add-trigger" onClick={() => setAdding(true)}>
+          <Plus size={15} />
+          Add a card
+        </button>
+      ))}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title={`Delete “${list.name}”?`}
+          body="The list and every card in it will be deleted. This cannot be undone."
+          confirmLabel="Delete list"
+          pending={remove.isPending}
+          onConfirm={() => remove.mutate()}
+          onCancel={() => setConfirmDelete(false)}
+        />
       )}
     </section>
   );

@@ -3,8 +3,14 @@ using Yanban.Domain.Enums;
 
 namespace Yanban.Application.Boards;
 
+/// <summary>
+/// <paramref name="SeedDefaultLists"/> opts into the starter template (Backlog / To Do / Doing /
+/// Done). It defaults to false, so an empty board stays the default and every existing caller is
+/// unaffected.
+/// </summary>
 public record CreateBoardRequest(
-    [Required, MaxLength(200)] string Name);
+    [Required, MaxLength(200)] string Name,
+    bool SeedDefaultLists = false);
 
 public record RenameBoardRequest(
     [Required, MaxLength(200)] string Name);

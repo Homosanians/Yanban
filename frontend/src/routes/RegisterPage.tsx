@@ -27,25 +27,39 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="auth-card">
-      <h1>Create account</h1>
-      <form onSubmit={onSubmit}>
-        <label>
-          Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label>
-          Display name
-          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
-        </label>
-        <label>
-          Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
-        </label>
-        {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={busy}>{busy ? "Creating..." : "Create account"}</button>
-      </form>
-      <p>Already registered? <Link to="/login">Sign in</Link></p>
+    <div className="auth-shell">
+      <div className="auth-card">
+        <div className="wordmark">
+          <span className="dot" />
+          Yanban
+        </div>
+        <p className="tagline">Create an account to get started.</p>
+
+        <form onSubmit={onSubmit}>
+          <label>
+            Email
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </label>
+          <label>
+            Display name
+            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={8}
+              required
+            />
+          </label>
+          {error && <p className="error">{error}</p>}
+          <button type="submit" disabled={busy}>{busy ? "Creating…" : "Create account"}</button>
+        </form>
+
+        <p className="alt">Already registered? <Link to="/login">Sign in</Link></p>
+      </div>
     </div>
   );
 }

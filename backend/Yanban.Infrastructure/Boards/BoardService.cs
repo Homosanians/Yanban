@@ -4,6 +4,7 @@ using Yanban.Application.Boards;
 using Yanban.Application.Common;
 using Yanban.Domain.Entities;
 using Yanban.Domain.Enums;
+using Yanban.Domain.Ordering;
 using Yanban.Infrastructure.Persistence;
 
 namespace Yanban.Infrastructure.Boards;
@@ -19,6 +20,9 @@ public class BoardService : IBoardService
         _activity = activity;
     }
 
+    /// <summary>The starter template. Order is meaningful — it becomes the left-to-right rank order.</summary>
+    private static readonly string[] DefaultLists = ["Backlog", "To Do", "Doing", "Done"];
+
     public async Task<BoardDto> CreateAsync(Guid userId, CreateBoardRequest request, CancellationToken ct)
     {
         var board = new Board
@@ -31,6 +35,21 @@ public class BoardService : IBoardService
         // The owner is a first-class member (Admin): effective role is derived solely
         // from membership everywhere, so there is one source of truth for RBAC.
         board.Members.Add(new BoardMember { BoardId = board.Id, UserId = userId, Role = BoardRole.Admin });
+
+        if (request.SeedDefaultLists)
+        {
+            // Seeded here rather than by four client calls, so the whole board lands in the single
+            // SaveChanges below: there is no window in which a half-built board is visible, and
+            // nothing to clean up if one insert fails. Ranks are chained off the previous one, the
+            // same way ListService.CreateAsync appends — no lock needed, since nothing else can
+            // reach this board until the transaction commits.
+            string? rank = null;
+            foreach (var name in DefaultLists)
+            {
+                rank = Rank.After(rank);
+                board.Lists.Add(new BoardList { Id = Guid.NewGuid(), BoardId = board.Id, Name = name, Rank = rank });
+            }
+        }
 
         _db.Boards.Add(board);
         _activity.Record(board.Id, ActivityAction.Created, ActivityEntityTypes.Board, board.Id, $"Created \"{board.Name}\"");

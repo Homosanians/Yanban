@@ -8,6 +8,7 @@ using Shouldly;
 using Xunit;
 using Yanban.Application.Auth;
 using Yanban.Application.Boards;
+using Yanban.Application.Lists;
 using Yanban.Domain.Enums;
 
 namespace Yanban.IntegrationTests;
@@ -233,5 +234,45 @@ public class BoardsEndpointsTests
         var restored = await (await client.SendAsync(Authed(HttpMethod.Get, $"/boards/{board.Id}", ownerToken)))
             .Content.ReadFromJsonAsync<BoardDto>(Json);
         restored!.Archived.ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// The optional starter template. Seeding happens in the same SaveChanges as the board and its
+    /// owner membership, so there is no interleaving that can leave a board half-seeded — the four
+    /// lists either all exist or the board does not.
+    /// </summary>
+    [Fact]
+    public async Task CreateBoard_WithTheTemplate_SeedsTheFourDefaultLists_InOrder()
+    {
+        var client = NewClient();
+        var (token, _, _) = await RegisterAsync(client);
+
+        var res = await client.SendAsync(Authed(HttpMethod.Post, "/boards", token,
+            new { name = "Seeded", seedDefaultLists = true }));
+        res.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var board = (await res.Content.ReadFromJsonAsync<BoardDto>(Json))!;
+
+        var lists = await (await client.SendAsync(Authed(HttpMethod.Get, $"/boards/{board.Id}/lists", token)))
+            .Content.ReadFromJsonAsync<IReadOnlyList<ListDto>>(Json);
+
+        // Order is the whole point: the lists come back ordered by rank, and a board that reads
+        // "Done, Doing, Backlog, To Do" is not the template anyone asked for.
+        lists!.Select(l => l.Name).ShouldBe(new[] { "Backlog", "To Do", "Doing", "Done" });
+    }
+
+    [Fact]
+    public async Task CreateBoard_WithoutTheTemplate_SeedsNothing()
+    {
+        var client = NewClient();
+        var (token, _, _) = await RegisterAsync(client);
+
+        // The flag defaults to false, so the plain create path — the one every other test and
+        // client uses — must keep producing an empty board.
+        var board = await CreateBoardAsync(client, token);
+
+        var lists = await (await client.SendAsync(Authed(HttpMethod.Get, $"/boards/{board.Id}/lists", token)))
+            .Content.ReadFromJsonAsync<IReadOnlyList<ListDto>>(Json);
+
+        lists!.ShouldBeEmpty();
     }
 }

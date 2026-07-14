@@ -26,21 +26,29 @@ export function LoginPage() {
   };
 
   return (
-    <div className="auth-card">
-      <h1>Sign in</h1>
-      <form onSubmit={onSubmit}>
-        <label>
-          Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label>
-          Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </label>
-        {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={busy}>{busy ? "Signing in..." : "Sign in"}</button>
-      </form>
-      <p>Need an account? <Link to="/register">Register</Link></p>
+    <div className="auth-shell">
+      <div className="auth-card">
+        <div className="wordmark">
+          <span className="dot" />
+          Yanban
+        </div>
+        <p className="tagline">Yet another kanban board.</p>
+
+        <form onSubmit={onSubmit}>
+          <label>
+            Email
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </label>
+          <label>
+            Password
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          </label>
+          {error && <p className="error">{error}</p>}
+          <button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+        </form>
+
+        <p className="alt">Need an account? <Link to="/register">Register</Link></p>
+      </div>
     </div>
   );
 }

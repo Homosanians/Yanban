@@ -11,8 +11,13 @@ export const listBoards = (): Promise<Board[]> => apiFetch<Board[]>("/boards");
 
 export const getBoard = (boardId: string): Promise<Board> => apiFetch<Board>(`/boards/${boardId}`);
 
-export const createBoard = (name: string): Promise<Board> =>
-  apiFetch<Board>("/boards", { method: "POST", body: { name } });
+/**
+ * `seedDefaultLists` asks the server for the starter template (Backlog / To Do / Doing / Done).
+ * The lists are created in the same transaction as the board, so this cannot half-succeed the way
+ * four follow-up POSTs from here could.
+ */
+export const createBoard = (name: string, seedDefaultLists = false): Promise<Board> =>
+  apiFetch<Board>("/boards", { method: "POST", body: { name, seedDefaultLists } });
 
 export const renameBoard = (boardId: string, name: string): Promise<Board> =>
   apiFetch<Board>(`/boards/${boardId}`, { method: "PUT", body: { name } });

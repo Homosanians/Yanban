@@ -1,25 +1,35 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { Archive, ArchiveRestore, LogOut, Plus, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { archiveBoard, boardKeys, createBoard, deleteBoard, listBoards, unarchiveBoard } from "../api/boards";
 import { useAuth } from "../auth/useAuth";
 import { canAdmin } from "../types";
 import type { Board } from "../types";
+import { Avatar } from "../components/Avatar";
+import { colorFor } from "../lib/color";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { ThemeToggle } from "../components/ThemeToggle";
 
 export function BoardsPage() {
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
+
   const [name, setName] = useState("");
+  const [seed, setSeed] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Board | null>(null);
 
   const boards = useQuery({ queryKey: boardKeys.all, queryFn: listBoards });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: boardKeys.all });
 
   const create = useMutation({
-    mutationFn: (boardName: string) => createBoard(boardName),
+    mutationFn: (boardName: string) => createBoard(boardName, seed),
     onSuccess: () => {
       setName("");
+      setCreating(false);
       void invalidate();
     },
   });
@@ -31,7 +41,10 @@ export function BoardsPage() {
 
   const remove = useMutation({
     mutationFn: (boardId: string) => deleteBoard(boardId),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setPendingDelete(null);
+      void invalidate();
+    },
   });
 
   const onCreate = (e: FormEvent) => {
@@ -42,52 +55,130 @@ export function BoardsPage() {
   return (
     <div className="page">
       <header className="topbar">
-        <h1>Yanban</h1>
-        <div className="user">
-          <span>{user?.displayName}</span>
-          <button className="ghost" onClick={() => void logout()}>Log out</button>
+        <div className="wordmark">
+          <span className="dot" />
+          Yanban
+        </div>
+        <div className="spacer" />
+        <div className="tools">
+          <ThemeToggle />
+          {user && <Avatar email={user.email} name={user.displayName} />}
+          <button className="icon-btn" aria-label="Log out" title="Log out" onClick={() => void logout()}>
+            <LogOut size={17} />
+          </button>
         </div>
       </header>
 
       <main className="boards">
-        <form className="row" onSubmit={onCreate}>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="New board name"
-            maxLength={200}
-          />
-          <button type="submit" disabled={create.isPending || !name.trim()}>Create board</button>
-        </form>
+        <div className="boards-head">
+          <h1>Your boards</h1>
+          <span className="muted">{boards.data?.length ?? 0} total</span>
+        </div>
+
+        {boards.isLoading && <p className="muted">Loading boards…</p>}
+        {boards.isError && <p className="error">{(boards.error as Error).message}</p>}
         {create.isError && <p className="error">{(create.error as Error).message}</p>}
 
-        {boards.isLoading && <p>Loading boards...</p>}
-        {boards.isError && <p className="error">{(boards.error as Error).message}</p>}
+        <div className="bento">
+          {/* The newest board gets the big cell — it is the one you almost always want. */}
+          {boards.data?.map((board, i) => (
+            <Link
+              key={board.id}
+              to={`/boards/${board.id}`}
+              className={[
+                "tile",
+                i === 0 ? "featured" : "",
+                board.archived ? "archived" : "",
+              ].filter(Boolean).join(" ")}
+            >
+              <span className="tile-art" style={{ background: colorFor(board.id) }} />
+              <span className="tile-name">{board.name}</span>
+              <span className="faint">
+                Created {new Date(board.createdAt).toLocaleDateString(undefined, {
+                  month: "short", day: "numeric", year: "numeric",
+                })}
+              </span>
+              <span className="tile-meta">
+                <span className="badge">{board.role}</span>
+                {board.archived && <span className="badge">Archived</span>}
+              </span>
 
-        <ul className="board-list">
-          {boards.data?.map((board) => (
-            <li key={board.id} className={board.archived ? "board archived" : "board"}>
-              <Link to={`/boards/${board.id}`} className="board-name">
-                {board.name}
-                {board.archived && <span className="badge">archived</span>}
-              </Link>
-              <span className="role">{board.role}</span>
               {/* Only an Admin may archive or delete — the API enforces it; this just avoids
                   offering a button that would 403. */}
               {canAdmin(board.role) && (
-                <span className="actions">
-                  <button className="ghost" onClick={() => archive.mutate(board)}>
-                    {board.archived ? "Unarchive" : "Archive"}
+                <span className="tile-actions">
+                  <button
+                    className="icon-btn"
+                    aria-label={board.archived ? `Unarchive ${board.name}` : `Archive ${board.name}`}
+                    title={board.archived ? "Unarchive" : "Archive"}
+                    onClick={(e) => {
+                      // The tile is a link; these are not.
+                      e.preventDefault();
+                      archive.mutate(board);
+                    }}
+                  >
+                    {board.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
                   </button>
-                  <button className="ghost danger" onClick={() => remove.mutate(board.id)}>Delete</button>
+                  <button
+                    className="icon-btn danger"
+                    aria-label={`Delete ${board.name}`}
+                    title="Delete"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPendingDelete(board);
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </span>
               )}
-            </li>
+            </Link>
           ))}
-        </ul>
 
-        {boards.data?.length === 0 && <p className="muted">No boards yet. Create one above.</p>}
+          <div className="tile ghost">
+            {creating ? (
+              <form onSubmit={onCreate}>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Escape" && setCreating(false)}
+                  placeholder="Board name"
+                  maxLength={200}
+                  autoFocus
+                />
+                <label className="check">
+                  <input type="checkbox" checked={seed} onChange={(e) => setSeed(e.target.checked)} />
+                  Start with Backlog · To Do · Doing · Done
+                </label>
+                <div className="row">
+                  <button type="submit" disabled={!name.trim() || create.isPending}>Create</button>
+                  <button type="button" className="ghost" onClick={() => setCreating(false)}>Cancel</button>
+                </div>
+              </form>
+            ) : (
+              <button className="ghost-cta" onClick={() => setCreating(true)}>
+                <Plus size={18} />
+                New board
+              </button>
+            )}
+          </div>
+        </div>
+
+        {boards.data?.length === 0 && !creating && (
+          <p className="empty">No boards yet — the tile above makes one.</p>
+        )}
       </main>
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title={`Delete “${pendingDelete.name}”?`}
+          body="Every list, card, comment and attachment on this board will be deleted. This cannot be undone."
+          confirmLabel="Delete board"
+          pending={remove.isPending}
+          onConfirm={() => remove.mutate(pendingDelete.id)}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

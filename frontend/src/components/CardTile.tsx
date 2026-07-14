@@ -1,48 +1,79 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { CalendarDays } from "lucide-react";
 import type { BoardMember, Card } from "../types";
+import { Avatar } from "./Avatar";
 
-interface Props {
+interface FaceProps {
   card: Card;
   members: BoardMember[];
-  draggable: boolean;
-  dragging: boolean;
-  onOpen: () => void;
 }
 
-export function CardTile({ card, members, draggable, dragging, onOpen }: Props) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
-    id: card.id,
-    disabled: !draggable,
-  });
-
+/** The card's contents, with no drag machinery — shared by the real tile and the drag overlay. */
+function CardFace({ card, members }: FaceProps) {
   const assignee = members.find((m) => m.userId === card.assigneeId);
   const due = card.dueDate ? new Date(card.dueDate) : null;
   const overdue = due !== null && due.getTime() < Date.now();
 
   return (
-    <article
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={dragging ? "card is-dragging" : "card"}
-      onClick={onOpen}
-      {...attributes}
-      {...listeners}
-    >
+    <>
       <p className="card-title">{card.title}</p>
       <div className="card-meta">
         {due && (
-          <span className={overdue ? "due overdue" : "due"}>{due.toLocaleDateString()}</span>
+          <span className={overdue ? "chip overdue" : "chip"}>
+            <CalendarDays size={11} />
+            {due.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+          </span>
         )}
-        {assignee && <span className="avatar" title={assignee.email}>{initials(assignee.displayName)}</span>}
+        {assignee && <Avatar email={assignee.email} name={assignee.displayName} size="sm" />}
       </div>
+    </>
+  );
+}
+
+/**
+ * The copy that follows the cursor.
+ *
+ * A separate component on purpose: it must *not* call useSortable. The overlay lives inside the
+ * DndContext, so a sortable hook here would register a second droppable under the id of the card
+ * being dragged — the drag would be measuring itself.
+ */
+export function CardOverlay({ card, members }: FaceProps) {
+  return (
+    <article className="card overlay">
+      <CardFace card={card} members={members} />
     </article>
   );
 }
 
-const initials = (name: string): string =>
-  name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("");
+interface Props extends FaceProps {
+  draggable: boolean;
+  onOpen: () => void;
+  /** Tells the board which card the Space shortcut would act on. */
+  onHover: (cardId: string | null) => void;
+}
+
+export function CardTile({ card, members, draggable, onOpen, onHover }: Props) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: card.id,
+    disabled: !draggable,
+  });
+
+  return (
+    <article
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      // While it is being dragged this element is just a hole in the layout: the DragOverlay is
+      // what the cursor carries. It still slides with the sort strategy, which is how you see
+      // where the card is about to land.
+      className={isDragging ? "card placeholder" : "card"}
+      onClick={onOpen}
+      onPointerEnter={() => onHover(card.id)}
+      onPointerLeave={() => onHover(null)}
+      {...attributes}
+      {...listeners}
+    >
+      <CardFace card={card} members={members} />
+    </article>
+  );
+}
