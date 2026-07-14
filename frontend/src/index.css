@@ -263,6 +263,35 @@ kbd {
 
 .page { display: flex; flex-direction: column; height: 100dvh; }
 
+/* The banner takes real space above the board rather than floating over it — a strip that overlaps
+   the top bar would cover the very controls it is asking you to keep using. So the shell owns the
+   viewport height and the page takes what is left. */
+.app-shell { display: flex; flex-direction: column; height: 100dvh; }
+.app-shell > .page { height: auto; flex: 1; min-height: 0; }
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  padding: 8px 12px 8px 16px;
+  background: var(--warn-soft);
+  color: var(--warn-text);
+  border-bottom: 1px solid color-mix(in srgb, var(--warn-text) 25%, transparent);
+  font-size: 13px;
+}
+.banner strong { font-weight: 650; }
+.banner .icon-btn { color: inherit; width: 28px; height: 28px; }
+.banner .icon-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--warn-text) 12%, transparent); color: inherit; }
+.banner .faint { color: inherit; opacity: 0.8; }
+.banner button.secondary { padding: 4px 10px; font-size: 12px; }
+
+.confirm-icon { margin: 6px 0 10px; }
+.confirm-icon.ok { color: #2e7d54; }
+.confirm-icon.bad { color: var(--danger); }
+.auth-card h1 { font-size: 19px; margin-bottom: 4px; }
+.auth-card a { color: var(--accent); font-weight: 550; }
+
 .topbar {
   display: flex;
   align-items: center;

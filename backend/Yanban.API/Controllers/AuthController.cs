@@ -60,6 +60,25 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Anonymous by design: the link is followed from a mail client, which carries no session. The
+    /// token in the body *is* the credential.
+    /// </summary>
+    [HttpPost("confirm-email")]
+    public async Task<IActionResult> ConfirmEmail(ConfirmEmailRequest request, CancellationToken ct)
+    {
+        await _auth.ConfirmEmailAsync(request.Token, ct);
+        return NoContent();
+    }
+
+    [Authorize]
+    [HttpPost("resend-confirmation")]
+    public async Task<IActionResult> ResendConfirmation(CancellationToken ct)
+    {
+        await _auth.ResendConfirmationAsync(CurrentUserId, ct);
+        return NoContent();
+    }
+
     [Authorize]
     [HttpPost("logout-all")]
     public async Task<IActionResult> LogoutAll(CancellationToken ct)

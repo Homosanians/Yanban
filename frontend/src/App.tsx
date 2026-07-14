@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { LoginPage } from "./routes/LoginPage";
 import { RegisterPage } from "./routes/RegisterPage";
+import { ConfirmEmailPage } from "./routes/ConfirmEmailPage";
 import { BoardsPage } from "./routes/BoardsPage";
 import { BoardPage } from "./routes/BoardPage";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
@@ -10,6 +11,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      {/* Unprotected: the link arrives by email, on a device that may never have signed in. */}
+      <Route path="/confirm-email" element={<ConfirmEmailPage />} />
       <Route
         path="/"
         element={

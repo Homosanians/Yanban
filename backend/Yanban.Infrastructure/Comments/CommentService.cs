@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Yanban.Application.Abstractions;
 using Yanban.Application.Comments;
 using Yanban.Application.Common;
+using Yanban.Application.Notifications;
 using Yanban.Domain.Entities;
 using Yanban.Domain.Enums;
 using Yanban.Infrastructure.Persistence;
@@ -12,11 +13,13 @@ public class CommentService : ICommentService
 {
     private readonly YanbanDbContext _db;
     private readonly IActivityRecorder _activity;
+    private readonly INotificationOutbox _outbox;
 
-    public CommentService(YanbanDbContext db, IActivityRecorder activity)
+    public CommentService(YanbanDbContext db, IActivityRecorder activity, INotificationOutbox outbox)
     {
         _db = db;
         _activity = activity;
+        _outbox = outbox;
     }
 
     public async Task<IReadOnlyList<CommentDto>> ListAsync(Guid boardId, Guid cardId, CancellationToken ct)
@@ -44,6 +47,39 @@ public class CommentService : ICommentService
         };
         _db.Comments.Add(comment);
         _activity.Record(boardId, ActivityAction.Created, ActivityEntityTypes.Comment, comment.Id, "Commented");
+
+        // A comment notifies the card's assignee, and nobody else. There is no participants or
+        // watchers concept in this domain, and inventing one to serve a notification would be the
+        // tail wagging the dog. (The outbox drops it if the assignee *is* the author, and this
+        // type is off by default — see NotificationDefaults.)
+        var card = await _db.Cards
+            .AsNoTracking()
+            .Where(c => c.Id == cardId)
+            .Select(c => new { c.Title, c.AssigneeId })
+            .FirstAsync(ct);
+
+        if (card.AssigneeId is Guid assignee)
+        {
+            var boardName = await _db.Boards
+                .AsNoTracking()
+                .Where(b => b.Id == boardId)
+                .Select(b => b.Name)
+                .FirstOrDefaultAsync(ct) ?? "a board";
+
+            var authorName = await _db.Users
+                .AsNoTracking()
+                .Where(u => u.Id == authorId)
+                .Select(u => u.DisplayName)
+                .FirstOrDefaultAsync(ct) ?? "Someone";
+
+            await _outbox.EnqueueAsync(
+                NotificationType.CommentCreated,
+                assignee,
+                boardId,
+                new CardNotificationPayload(authorName, boardName, card.Title, cardId, CommentBody: comment.Body),
+                ct);
+        }
+
         await _db.SaveChangesAsync(ct);
 
         return await ToDtoAsync(comment.Id, ct);

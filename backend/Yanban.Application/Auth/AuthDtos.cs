@@ -14,6 +14,9 @@ public record LoginRequest(
 public record RefreshRequest(
     [Required] string RefreshToken);
 
+public record ConfirmEmailRequest(
+    [Required] string Token);
+
 // Internal service result: carries both tokens.
 public record AuthResponse(string AccessToken, string RefreshToken, DateTimeOffset AccessTokenExpiresAt);
 
@@ -21,6 +24,10 @@ public record AuthResponse(string AccessToken, string RefreshToken, DateTimeOffs
 // out of band as an httpOnly cookie and never appears in the response body.
 public record AccessTokenResponse(string AccessToken, DateTimeOffset AccessTokenExpiresAt);
 
-public record UserDto(Guid Id, string Email, string DisplayName);
+/// <summary>
+/// <paramref name="EmailConfirmed"/> drives the nag banner. An unconfirmed account is fully
+/// usable — this is a prompt, not a gate (ADR-16).
+/// </summary>
+public record UserDto(Guid Id, string Email, string DisplayName, bool EmailConfirmed);
 
 public record AccessToken(string Value, DateTimeOffset ExpiresAt);

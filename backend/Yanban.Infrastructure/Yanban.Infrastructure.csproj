@@ -9,6 +9,7 @@
     <PackageReference Include="AWSSDK.S3" Version="3.7.408" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="EFCore.NamingConventions" Version="9.0.0" />
+    <PackageReference Include="MailKit" Version="4.17.0" />
     <!-- Pinned explicitly. Without it the EF *runtime* comes transitively from the Npgsql
          provider (which asks for 9.0.1) while .Design is 9.0.7, so MSBuild unifies the two
          and every referencing project gets an MSB3277 wall. Keep these two at the same

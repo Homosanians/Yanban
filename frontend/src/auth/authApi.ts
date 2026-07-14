@@ -27,3 +27,12 @@ export async function logout(): Promise<void> {
 export function fetchMe(): Promise<User> {
   return apiFetch<User>("/me");
 }
+
+/** Anonymous: the link is followed out of a mail client, which carries no session. */
+export function confirmEmail(token: string): Promise<void> {
+  return apiFetch<void>("/auth/confirm-email", { method: "POST", body: { token }, auth: false });
+}
+
+export function resendConfirmation(): Promise<void> {
+  return apiFetch<void>("/auth/resend-confirmation", { method: "POST" });
+}

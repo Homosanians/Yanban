@@ -14,6 +14,7 @@ using Yanban.Infrastructure.Caching;
 using Yanban.Infrastructure.Cards;
 using Yanban.Infrastructure.Comments;
 using Yanban.Infrastructure.Lists;
+using Yanban.Infrastructure.Notifications;
 using Yanban.Infrastructure.Persistence;
 using Yanban.Infrastructure.Search;
 using Yanban.Infrastructure.Security;
@@ -49,6 +50,12 @@ public static class DependencyInjection
         services.AddScoped<IActivityRecorder, ActivityRecorder>();
         // The same table read as an outbox, by the realtime tailer (ADR-11).
         services.AddScoped<IActivityOutbox, ActivityOutbox>();
+
+        // Email notifications. Scoped for the same reason the recorder is: the outbox row has to
+        // land in the mutation's own unit of work, or we would be promising to send mail about
+        // changes that never committed (ADR-16).
+        services.AddScoped<INotificationPreferenceService, NotificationPreferenceService>();
+        services.AddScoped<INotificationOutbox, NotificationOutbox>();
 
         // Object storage (S3-compatible; MinIO in dev), path-style addressing (required by MinIO).
         //

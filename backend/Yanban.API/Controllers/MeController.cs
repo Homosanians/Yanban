@@ -24,6 +24,6 @@ public class MeController : ControllerBase
         if (user is null)
             return NotFound();
 
-        return Ok(new UserDto(user.Id, user.Email, user.DisplayName));
+        return Ok(new UserDto(user.Id, user.Email, user.DisplayName, user.EmailConfirmedAt is not null));
     }
 }

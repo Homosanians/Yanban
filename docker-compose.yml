@@ -29,6 +29,15 @@ services:
     volumes:
       - minio_data:/data
 
+  # A fake SMTP server with a web inbox. Nothing to sign up for, no credentials, no mail leaves the
+  # machine: open http://localhost:8025 and read everything the app has sent. Swapping in a real
+  # relay is a pure config change (Email__Host / __Port / __User / __Password / __UseStartTls).
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025" # SMTP, for the worker
+      - "8025:8025" # the inbox, for you
+
   api:
     build:
       context: ./backend
@@ -56,6 +65,31 @@ services:
       S3__Bucket: "yanban-attachments"
     ports:
       - "8081:8080"
+
+  # Drains the notification outbox. A separate process from the API on purpose: sending mail is
+  # slow, retried and failure-prone, and none of that belongs on a request thread (ADR-16).
+  #
+  # It claims rows with FOR UPDATE SKIP LOCKED, so scaling this to N replicas partitions the queue
+  # rather than sending every message N times. It does NOT apply migrations — the API owns those.
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Yanban.Worker/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=yanban;Username=yanban;Password=yanban_dev_password"
+      Email__Host: "mailpit"
+      Email__Port: "1025"
+      Email__UseStartTls: "false"
+      Email__FromAddress: "no-reply@yanban.local"
+      Email__FromName: "Yanban"
+      # The origin the *browser* will follow the confirmation link to — the SPA, not the API.
+      Email__AppBaseUrl: "http://localhost:8080"
 
   frontend:
     build:

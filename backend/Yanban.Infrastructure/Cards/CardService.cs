@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Yanban.Application.Abstractions;
 using Yanban.Application.Cards;
 using Yanban.Application.Common;
+using Yanban.Application.Notifications;
 using Yanban.Application.Templates;
 using Yanban.Domain.Entities;
 using Yanban.Domain.Enums;
@@ -16,11 +17,56 @@ public class CardService : ICardService
 
     private readonly YanbanDbContext _db;
     private readonly IActivityRecorder _activity;
+    private readonly INotificationOutbox _outbox;
+    private readonly ICurrentUser _currentUser;
 
-    public CardService(YanbanDbContext db, IActivityRecorder activity)
+    public CardService(
+        YanbanDbContext db,
+        IActivityRecorder activity,
+        INotificationOutbox outbox,
+        ICurrentUser currentUser)
     {
         _db = db;
         _activity = activity;
+        _outbox = outbox;
+        _currentUser = currentUser;
+    }
+
+    /// <summary>
+    /// Queues one card notification, with everything the worker needs to render it baked in — the
+    /// worker must never come back and ask what the card is called *now*, because by then "now" is
+    /// after the fact.
+    ///
+    /// <para>Like every enqueue, this only <c>Add</c>s: the caller's <c>SaveChanges</c> is what
+    /// makes it real.</para>
+    /// </summary>
+    private async Task NotifyAsync(
+        NotificationType type,
+        Guid recipientId,
+        Guid boardId,
+        Card card,
+        CancellationToken ct,
+        string? listName = null,
+        string? commentBody = null)
+    {
+        var boardName = await _db.Boards
+            .AsNoTracking()
+            .Where(b => b.Id == boardId)
+            .Select(b => b.Name)
+            .FirstOrDefaultAsync(ct) ?? "a board";
+
+        var actorName = await _db.Users
+            .AsNoTracking()
+            .Where(u => u.Id == _currentUser.UserId)
+            .Select(u => u.DisplayName)
+            .FirstOrDefaultAsync(ct) ?? "Someone";
+
+        await _outbox.EnqueueAsync(
+            type,
+            recipientId,
+            boardId,
+            new CardNotificationPayload(actorName, boardName, card.Title, card.Id, listName, commentBody),
+            ct);
     }
 
     public async Task<IReadOnlyList<CardDto>> ListAsync(Guid boardId, Guid listId, CancellationToken ct)
@@ -171,6 +217,12 @@ public class CardService : ICardService
         // No explicit If-Match on move; the card's xmin token still guards against a
         // concurrent edit slipping in, surfacing as 409 via the exception middleware.
         _activity.Record(boardId, ActivityAction.Moved, ActivityEntityTypes.Card, cardId, $"Moved \"{card.Title}\"");
+
+        // Only the assignee cares that their card moved — and only when someone else moved it
+        // (the outbox drops a message whose recipient is the actor).
+        if (card.AssigneeId is Guid owner)
+            await NotifyAsync(NotificationType.AssignedCardMoved, owner, boardId, card, ct, locked[0].Name);
+
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
@@ -200,9 +252,21 @@ public class CardService : ICardService
                 throw new ValidationAppException("The assignee must be a member of the board.");
         }
 
+        // Read before the overwrite: the person losing the card is the only one who can tell us
+        // there was one to lose.
+        var previousAssignee = card.AssigneeId;
+
         card.AssigneeId = assigneeId;
         _activity.Record(boardId, ActivityAction.Assigned, ActivityEntityTypes.Card, cardId,
             assigneeId is null ? $"Unassigned \"{card.Title}\"" : $"Assigned \"{card.Title}\"");
+
+        // Queued into this same SaveChanges: if the save below loses to the xmin check, the mail
+        // is discarded with it. Nobody is told about an assignment that did not happen.
+        if (assigneeId is Guid newAssignee && newAssignee != previousAssignee)
+            await NotifyAsync(NotificationType.CardAssigned, newAssignee, boardId, card, ct);
+
+        if (previousAssignee is Guid lost && lost != assigneeId)
+            await NotifyAsync(NotificationType.CardUnassigned, lost, boardId, card, ct);
         // No client If-Match here (assignment is a low-contention scalar), but the card's
         // xmin token still guards the tracked save against a lost update -> rare 409.
         await _db.SaveChangesAsync(ct);

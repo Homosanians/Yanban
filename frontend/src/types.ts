@@ -6,10 +6,13 @@ export interface AccessTokenResponse {
   accessTokenExpiresAt: string;
 }
 
+/** `emailConfirmed` drives the nag banner. It is a prompt, never a gate — an unconfirmed
+ *  account is fully usable. */
 export interface User {
   id: string;
   email: string;
   displayName: string;
+  emailConfirmed: boolean;
 }
 
 export type BoardRole = "Viewer" | "Editor" | "Admin";
