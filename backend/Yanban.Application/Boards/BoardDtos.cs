@@ -4,13 +4,20 @@ using Yanban.Domain.Enums;
 namespace Yanban.Application.Boards;
 
 /// <summary>
-/// <paramref name="SeedDefaultLists"/> opts into the starter template (Backlog / To Do / Doing /
-/// Done). It defaults to false, so an empty board stays the default and every existing caller is
-/// unaffected.
+/// <paramref name="Template"/> names a starter layout (see <c>BoardTemplateOptions</c>): "simple",
+/// "dev-flow", or null for an empty board. Both default to their empty state, so an existing caller
+/// that sends neither still gets a blank board.
+///
+/// <para><paramref name="SeedDefaultLists"/> is the M11 boolean, kept so old clients keep working:
+/// true means "the simple template". <paramref name="Template"/> wins if both are sent.</para>
 /// </summary>
 public record CreateBoardRequest(
     [Required, MaxLength(200)] string Name,
-    bool SeedDefaultLists = false);
+    bool SeedDefaultLists = false,
+    string? Template = null);
+
+/// <summary>A starter layout offered to the new-board dialog.</summary>
+public record BoardTemplateDto(string Id, string Name, IReadOnlyList<string> Lists);
 
 public record RenameBoardRequest(
     [Required, MaxLength(200)] string Name);

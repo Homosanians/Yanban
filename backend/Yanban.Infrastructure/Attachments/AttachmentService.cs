@@ -221,10 +221,12 @@ public class AttachmentService : IAttachmentService
     {
         var attachment = await FindAsync(boardId, cardId, attachmentId, ct);
 
-        // Remove the object first; if storage is unreachable the row survives and the
-        // delete can be retried (rather than leaving a row that points at live bytes).
-        await _storage.DeleteAsync(attachment.StorageKey, ct);
-
+        // No S3 call here anymore (ADR-18). Removing the row fires an AFTER DELETE trigger that
+        // queues the object for the worker to delete — the *same* path a cascade takes when a card
+        // or board is deleted out from under this service. Two paths deleting the same object (a
+        // direct S3 call here, plus the trigger's queue) would mean deleting it twice; one path is
+        // the point. The cost is that deletion is now eventual, which is a feature: a card delete no
+        // longer fails because storage hiccuped.
         _db.Attachments.Remove(attachment);
         if (attachment.Status == AttachmentStatus.Ready)
             _activity.Record(boardId, ActivityAction.Deleted, ActivityEntityTypes.Attachment, attachmentId, $"Removed \"{attachment.FileName}\"");

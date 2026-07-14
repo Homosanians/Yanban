@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Yanban.Application.Abstractions;
 using Yanban.Application.Boards;
 using Yanban.Application.Common;
@@ -13,15 +14,17 @@ public class BoardService : IBoardService
 {
     private readonly YanbanDbContext _db;
     private readonly IActivityRecorder _activity;
+    private readonly BoardTemplateOptions _templates;
 
-    public BoardService(YanbanDbContext db, IActivityRecorder activity)
+    public BoardService(YanbanDbContext db, IActivityRecorder activity, IOptions<BoardTemplateOptions> templates)
     {
         _db = db;
         _activity = activity;
+        _templates = templates.Value;
     }
 
-    /// <summary>The starter template. Order is meaningful — it becomes the left-to-right rank order.</summary>
-    private static readonly string[] DefaultLists = ["Backlog", "To Do", "Doing", "Done"];
+    public IReadOnlyList<BoardTemplateDto> ListTemplates() =>
+        _templates.Templates.Select(t => new BoardTemplateDto(t.Id, t.Name, t.Lists)).ToList();
 
     public async Task<BoardDto> CreateAsync(Guid userId, CreateBoardRequest request, CancellationToken ct)
     {
@@ -36,15 +39,21 @@ public class BoardService : IBoardService
         // from membership everywhere, so there is one source of truth for RBAC.
         board.Members.Add(new BoardMember { BoardId = board.Id, UserId = userId, Role = BoardRole.Admin });
 
-        if (request.SeedDefaultLists)
+        // Template wins if sent; otherwise the M11 boolean still means "the simple template". So an
+        // old client that only knows SeedDefaultLists keeps getting exactly what it used to.
+        var templateId = request.Template ?? (request.SeedDefaultLists ? "simple" : null);
+        if (templateId is not null)
         {
-            // Seeded here rather than by four client calls, so the whole board lands in the single
+            var template = _templates.Find(templateId)
+                ?? throw new ValidationAppException($"Unknown board template \"{templateId}\".");
+
+            // Seeded here rather than by client calls, so the whole board lands in the single
             // SaveChanges below: there is no window in which a half-built board is visible, and
             // nothing to clean up if one insert fails. Ranks are chained off the previous one, the
             // same way ListService.CreateAsync appends — no lock needed, since nothing else can
             // reach this board until the transaction commits.
             string? rank = null;
-            foreach (var name in DefaultLists)
+            foreach (var name in template.Lists)
             {
                 rank = Rank.After(rank);
                 board.Lists.Add(new BoardList { Id = Guid.NewGuid(), BoardId = board.Id, Name = name, Rank = rank });

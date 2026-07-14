@@ -121,6 +121,13 @@ export interface Activity {
   createdAt: string;
 }
 
+/** A starter layout the new-board dialog can offer. `id` is what create sends back. */
+export interface BoardTemplate {
+  id: string;
+  name: string;
+  lists: string[];
+}
+
 /** What a board is holding, against what it may hold. `usedBytes` counts completed files only. */
 export interface BoardUsage {
   usedBytes: number;

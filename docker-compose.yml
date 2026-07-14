@@ -80,6 +80,8 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
+      minio:
+        condition: service_started
     environment:
       DOTNET_ENVIRONMENT: Development
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=yanban;Username=yanban;Password=yanban_dev_password"
@@ -90,6 +92,12 @@ services:
       Email__FromName: "Yanban"
       # The origin the *browser* will follow the confirmation link to — the SPA, not the API.
       Email__AppBaseUrl: "http://localhost:8080"
+      # The storage janitor deletes orphaned objects, so the worker needs the internal MinIO client.
+      # No PublicEndpoint: it never mints presigned URLs, so there is no browser-facing host to sign.
+      S3__Endpoint: "http://minio:9000"
+      S3__AccessKey: "minioadmin"
+      S3__SecretKey: "minioadmin"
+      S3__Bucket: "yanban-attachments"
 
   frontend:
     build:

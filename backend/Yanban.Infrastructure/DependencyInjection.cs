@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Yanban.Application.Abstractions;
+using Yanban.Application.Boards;
 using Yanban.Application.Common;
 using Yanban.Infrastructure.Activities;
 using Yanban.Infrastructure.Attachments;
@@ -38,6 +39,7 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.Configure<BoardTemplateOptions>(configuration.GetSection(BoardTemplateOptions.SectionName));
         services.AddScoped<IBoardService, BoardService>();
         services.AddScoped<IListService, ListService>();
         services.AddScoped<ICardService, CardService>();

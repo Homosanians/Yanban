@@ -24,7 +24,7 @@ export function BoardsPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: boardKeys.all });
 
   const create = useMutation({
-    mutationFn: (v: { name: string; seed: boolean }) => createBoard(v.name, v.seed),
+    mutationFn: (v: { name: string; template: string | null }) => createBoard(v.name, v.template),
     onSuccess: () => {
       setCreating(false);
       void invalidate();
@@ -143,7 +143,7 @@ export function BoardsPage() {
         <NewBoardDialog
           pending={create.isPending}
           error={create.isError ? (create.error as Error).message : null}
-          onCreate={(name, seed) => create.mutate({ name, seed })}
+          onCreate={(name, template) => create.mutate({ name, template })}
           onCancel={() => { create.reset(); setCreating(false); }}
         />
       )}

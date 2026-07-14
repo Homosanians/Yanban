@@ -1,22 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { listBoardTemplates } from "../api/boards";
 
 interface Props {
   pending: boolean;
   error?: string | null;
-  onCreate: (name: string, seedDefaultLists: boolean) => void;
+  onCreate: (name: string, template: string | null) => void;
   onCancel: () => void;
 }
 
 /**
- * Creating a board is a decision with two parts — a name and whether to start from the template —
- * so it gets a dialog rather than an input wedged into a 230px tile. Shares the shell with
- * ConfirmDialog: one centred-dialog look in the app, not two.
+ * Creating a board is a decision with two parts — a name and which layout to start from — so it
+ * gets a dialog rather than an input wedged into a 230px tile. Shares the shell with ConfirmDialog:
+ * one centred-dialog look in the app, not two.
+ *
+ * The templates come from the server (they are configurable there), so this is a fetched list of
+ * radio options, with "Empty board" always first and pre-selected — starting blank is a real,
+ * common choice, not a fallback.
  */
 export function NewBoardDialog({ pending, error, onCreate, onCancel }: Props) {
   const [name, setName] = useState("");
-  const [seed, setSeed] = useState(true);
+  // "" is the sentinel for an empty board; a real template id otherwise.
+  const [template, setTemplate] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
+
+  const templates = useQuery({ queryKey: ["board-templates"], queryFn: listBoardTemplates });
 
   // Unlike the confirm dialog — which focuses Cancel, because it guards a destruction — this one
   // exists to be filled in, so focus goes where the typing starts.
@@ -35,7 +44,7 @@ export function NewBoardDialog({ pending, error, onCreate, onCancel }: Props) {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (name.trim()) onCreate(name.trim(), seed);
+    if (name.trim()) onCreate(name.trim(), template || null);
   };
 
   return (
@@ -56,10 +65,37 @@ export function NewBoardDialog({ pending, error, onCreate, onCancel }: Props) {
               />
             </label>
 
-            <label className="check">
-              <input type="checkbox" checked={seed} onChange={(e) => setSeed(e.target.checked)} />
-              Start with Backlog · To Do · Doing · Done
-            </label>
+            <fieldset className="template-choice">
+              <legend>Start from</legend>
+
+              <label className="template-option">
+                <input
+                  type="radio"
+                  name="template"
+                  checked={template === ""}
+                  onChange={() => setTemplate("")}
+                />
+                <span>
+                  <strong>Empty board</strong>
+                  <span className="faint">No lists — add your own</span>
+                </span>
+              </label>
+
+              {templates.data?.map((t) => (
+                <label key={t.id} className="template-option">
+                  <input
+                    type="radio"
+                    name="template"
+                    checked={template === t.id}
+                    onChange={() => setTemplate(t.id)}
+                  />
+                  <span>
+                    <strong>{t.name}</strong>
+                    <span className="faint">{t.lists.join(" · ")}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
 
             {error && <p className="error">{error}</p>}
 

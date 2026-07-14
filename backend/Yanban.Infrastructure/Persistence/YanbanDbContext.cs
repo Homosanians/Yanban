@@ -22,6 +22,7 @@ public class YanbanDbContext : DbContext
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
     public DbSet<EmailConfirmationToken> EmailConfirmationTokens => Set<EmailConfirmationToken>();
+    public DbSet<ObjectDeletion> ObjectDeletions => Set<ObjectDeletion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

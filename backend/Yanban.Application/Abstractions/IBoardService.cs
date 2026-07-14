@@ -10,6 +10,9 @@ namespace Yanban.Application.Abstractions;
 public interface IBoardService
 {
     Task<BoardDto> CreateAsync(Guid userId, CreateBoardRequest request, CancellationToken ct);
+
+    /// <summary>The starter layouts the new-board dialog can offer. No board involved — just config.</summary>
+    IReadOnlyList<BoardTemplateDto> ListTemplates();
     Task<IReadOnlyList<BoardDto>> ListForUserAsync(Guid userId, CancellationToken ct);
     Task<BoardDto> GetAsync(Guid userId, Guid boardId, CancellationToken ct);
     Task<BoardDto> RenameAsync(Guid userId, Guid boardId, RenameBoardRequest request, CancellationToken ct);

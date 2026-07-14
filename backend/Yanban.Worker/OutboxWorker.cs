@@ -1,13 +1,18 @@
 using Microsoft.Extensions.Options;
 using Yanban.Application.Common;
 using Yanban.Infrastructure.Notifications;
+using Yanban.Infrastructure.Storage;
 
 namespace Yanban.Worker;
 
 /// <summary>
-/// The loop. All of the interesting behaviour lives in <see cref="OutboxProcessor"/> — deliberately,
-/// because that is what the tests drive: a <c>BackgroundService</c> is not something you can assert
-/// against, and a claim loop very much is.
+/// The loop. All of the interesting behaviour lives in <see cref="OutboxProcessor"/> and
+/// <see cref="StorageJanitor"/> — deliberately, because that is what the tests drive: a
+/// <c>BackgroundService</c> is not something you can assert against, and a claim loop very much is.
+///
+/// <para>One process, three queues: emails to send, objects to delete, and abandoned uploads to
+/// reap. They share a worker because they share a shape — a Postgres-backed queue drained by a
+/// <c>SKIP LOCKED</c> claim — and none of them is busy enough to want its own.</para>
 /// </summary>
 public class OutboxWorker : BackgroundService
 {
@@ -41,9 +46,15 @@ public class OutboxWorker : BackgroundService
                 // accumulate every message it has ever tracked.
                 using var scope = _scopes.CreateScope();
                 var processor = scope.ServiceProvider.GetRequiredService<OutboxProcessor>();
+                var janitor = scope.ServiceProvider.GetRequiredService<StorageJanitor>();
 
-                // Drain rather than sip: a burst of 50 messages should not take five polls to clear.
+                // Drain rather than sip: a burst should not take several polls to clear.
                 while (await processor.ProcessBatchAsync(stoppingToken) > 0) { }
+
+                // Reap abandoned uploads first, so the objects they orphan are enqueued in time for
+                // this same pass's drain to pick them up.
+                await janitor.ReapAbandonedUploadsAsync(stoppingToken);
+                while (await janitor.DrainDeletionsAsync(stoppingToken) > 0) { }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

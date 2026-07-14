@@ -3,6 +3,7 @@ import type {
   Board,
   BoardMember,
   BoardRole,
+  BoardTemplate,
   BoardUsage,
   NotificationPreference,
   NotificationType,
@@ -23,8 +24,12 @@ export const getBoard = (boardId: string): Promise<Board> => apiFetch<Board>(`/b
  * The lists are created in the same transaction as the board, so this cannot half-succeed the way
  * four follow-up POSTs from here could.
  */
-export const createBoard = (name: string, seedDefaultLists = false): Promise<Board> =>
-  apiFetch<Board>("/boards", { method: "POST", body: { name, seedDefaultLists } });
+// `template` is a template id ("simple" / "dev-flow") or null for an empty board.
+export const createBoard = (name: string, template: string | null = null): Promise<Board> =>
+  apiFetch<Board>("/boards", { method: "POST", body: { name, template } });
+
+export const listBoardTemplates = (): Promise<BoardTemplate[]> =>
+  apiFetch<BoardTemplate[]>("/board-templates");
 
 // --- storage & notifications (the board settings panel) ---
 
