@@ -5,8 +5,9 @@ namespace Yanban.Application.Abstractions;
 public interface IActivityService
 {
     /// <summary>
-    /// Returns a board's activity newest-first. <paramref name="beforeSequence"/> is a
-    /// keyset cursor: pass the smallest Sequence seen so far to fetch the next older page.
+    /// Returns a board's activity newest-first, narrowed by <paramref name="query"/>. The keyset
+    /// cursor survives every filter: paging deeper into a *search* works the same way as paging
+    /// deeper into the plain feed.
     /// </summary>
-    Task<IReadOnlyList<ActivityDto>> ListAsync(Guid boardId, int limit, long? beforeSequence, CancellationToken ct);
+    Task<IReadOnlyList<ActivityDto>> ListAsync(Guid boardId, ActivityQuery query, CancellationToken ct);
 }

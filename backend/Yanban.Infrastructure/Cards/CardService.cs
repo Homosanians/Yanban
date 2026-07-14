@@ -143,13 +143,23 @@ public class CardService : ICardService
         // would compare the row against itself and the precondition could never fail.
         _db.Entry(card).Property(XminProperty).OriginalValue = expectedVersion;
 
-        card.Title = request.Title.Trim();
+        // Captured before the overwrite. Only recorded if the title actually moved: an edit that
+        // only touches the description is not a rename, and logging "Alpha -> Alpha" would be noise
+        // in the one place that exists to be read carefully.
+        var oldTitle = card.Title;
+        var newTitle = request.Title.Trim();
+        var renamed = !string.Equals(oldTitle, newTitle, StringComparison.Ordinal);
+
+        card.Title = newTitle;
         card.Description = request.Description;
         card.DueDate = request.DueDate;
 
         // Recorded into the same SaveChanges, so if the xmin precondition fails below
         // the audit row is discarded with the update — a rejected edit leaves no trace.
-        _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.Card, cardId, $"Updated \"{card.Title}\"");
+        _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.Card, cardId,
+            $"Updated \"{card.Title}\"",
+            oldValue: renamed ? oldTitle : null,
+            newValue: renamed ? newTitle : null);
 
         try
         {

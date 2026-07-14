@@ -115,7 +115,18 @@ export interface Activity {
   entityType: string;
   entityId: string;
   summary: string | null;
+  /** Set for renames, null for everything else — a creation has no "before". */
+  oldValue: string | null;
+  newValue: string | null;
   createdAt: string;
+}
+
+/** Every field optional and they compose; none of them is the plain newest-first feed. */
+export interface ActivityFilters {
+  q?: string;
+  actorId?: string;
+  action?: string;
+  entityType?: string;
 }
 
 /** Ascending order of power — for role pickers. */

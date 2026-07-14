@@ -1,31 +1,62 @@
-import { X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowRight, Search, X } from "lucide-react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { contentKeys, listActivity } from "../api/board-content";
-import type { BoardMember } from "../types";
+import type { ActivityFilters, BoardMember } from "../types";
 import { Avatar } from "./Avatar";
 
 interface Props {
   boardId: string;
-  /** Only used to find the actor's email, which is what the avatar's colour is keyed on. */
+  /** Used for the actor avatars, and to populate the "who" filter. */
   members: BoardMember[];
   onClose: () => void;
 }
 
 const PAGE_SIZE = 20;
 
+const ENTITY_TYPES = ["Board", "List", "Card", "Comment", "Attachment", "Member", "Template"];
+const ACTIONS = ["Created", "Updated", "Deleted", "Moved", "Assigned"];
+
 export function ActivityFeed({ boardId, members, onClose }: Props) {
-  // Keyset paging, mirroring the API: the next page asks for entries *before* the oldest
-  // sequence already held. No offsets — an event arriving mid-scroll must not shift the window
-  // and make a row appear twice.
+  const [q, setQ] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [actorId, setActorId] = useState("");
+  const [action, setAction] = useState("");
+  const [entityType, setEntityType] = useState("");
+
+  // One request per pause in typing, not per keystroke — the same 250ms the command palette uses.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(q.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  const filters: ActivityFilters = {
+    q: debounced || undefined,
+    actorId: actorId || undefined,
+    action: action || undefined,
+    entityType: entityType || undefined,
+  };
+
+  // Keyset paging, mirroring the API: the next page asks for entries *before* the oldest sequence
+  // already held. The filters are part of the query key, so changing one starts a fresh feed rather
+  // than appending different results to the old one.
   const feed = useInfiniteQuery({
-    queryKey: contentKeys.activity(boardId),
-    queryFn: ({ pageParam }) => listActivity(boardId, pageParam),
+    queryKey: [...contentKeys.activity(boardId), filters],
+    queryFn: ({ pageParam }) => listActivity(boardId, pageParam, filters),
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (lastPage) =>
       lastPage.length < PAGE_SIZE ? undefined : lastPage.at(-1)?.sequence,
   });
 
   const entries = feed.data?.pages.flat() ?? [];
+  const filtered = Boolean(debounced || actorId || action || entityType);
+
+  const clear = () => {
+    setQ("");
+    setActorId("");
+    setAction("");
+    setEntityType("");
+  };
 
   return (
     <aside className="panel">
@@ -35,6 +66,41 @@ export function ActivityFeed({ boardId, members, onClose }: Props) {
           <X size={16} />
         </button>
       </header>
+
+      <div className="panel-filters">
+        <div className="field">
+          <Search size={14} />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search the audit log"
+            aria-label="Search the audit log"
+          />
+        </div>
+
+        <div className="row">
+          <select value={actorId} onChange={(e) => setActorId(e.target.value)} aria-label="Filter by member">
+            <option value="">Anyone</option>
+            {members.map((m) => (
+              <option key={m.userId} value={m.userId}>{m.displayName}</option>
+            ))}
+          </select>
+
+          <select value={action} onChange={(e) => setAction(e.target.value)} aria-label="Filter by action">
+            <option value="">Any action</option>
+            {ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+
+          <select value={entityType} onChange={(e) => setEntityType(e.target.value)} aria-label="Filter by type">
+            <option value="">Anything</option>
+            {ENTITY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+
+        {filtered && (
+          <button className="link" onClick={clear}>Clear filters</button>
+        )}
+      </div>
 
       <div className="panel-body">
         {feed.isLoading && <p className="muted">Loading…</p>}
@@ -54,6 +120,16 @@ export function ActivityFeed({ boardId, members, onClose }: Props) {
                     <strong>{a.actorDisplayName}</strong>{" "}
                     {a.summary ?? `${a.action.toLowerCase()} a ${a.entityType.toLowerCase()}`}
                   </span>
+
+                  {/* A rename is the one event where "what it was" is the point. */}
+                  {a.oldValue && a.newValue && (
+                    <div className="diff">
+                      <span className="was">{a.oldValue}</span>
+                      <ArrowRight size={12} />
+                      <span className="now">{a.newValue}</span>
+                    </div>
+                  )}
+
                   <div className="when">{new Date(a.createdAt).toLocaleString()}</div>
                 </div>
               </li>
@@ -70,7 +146,10 @@ export function ActivityFeed({ boardId, members, onClose }: Props) {
             {feed.isFetchingNextPage ? "Loading…" : "Load older"}
           </button>
         )}
-        {entries.length === 0 && !feed.isLoading && <p className="empty">Nothing has happened yet.</p>}
+
+        {entries.length === 0 && !feed.isLoading && (
+          <p className="empty">{filtered ? "Nothing matches those filters." : "Nothing has happened yet."}</p>
+        )}
       </div>
     </aside>
   );

@@ -16,7 +16,8 @@ public class OutboxCursorTests
     private static readonly DateTimeOffset Now = new(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
 
     private static ActivityDto Row(long sequence, DateTimeOffset createdAt) =>
-        new(sequence, Guid.NewGuid(), Guid.NewGuid(), "Actor", "Created", "Card", Guid.NewGuid(), null, createdAt);
+        new(sequence, Guid.NewGuid(), Guid.NewGuid(), "Actor", "Created", "Card", Guid.NewGuid(),
+            null, null, null, createdAt);
 
     [Fact]
     public void AgedRows_AreDispatchedAndTheCursorMovesPastThem()

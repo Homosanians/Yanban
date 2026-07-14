@@ -38,5 +38,16 @@ public class ActivityLog
     /// <summary>Optional human-readable detail, e.g. "Renamed to Sprint 12".</summary>
     public string? Summary { get; set; }
 
+    /// <summary>
+    /// What the value was, and what it became — for renames (a card's title, a list's or board's
+    /// name). Null for everything else: a creation has no "before", and a move is not a text edit.
+    ///
+    /// <para>Two plain columns rather than a jsonb diff. The requirement is renames, and a rename
+    /// is one string becoming another; a general-purpose diff format would be a schema to design,
+    /// version and read, in exchange for a generality nothing is asking for.</para>
+    /// </summary>
+    public string? OldValue { get; set; }
+    public string? NewValue { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 }

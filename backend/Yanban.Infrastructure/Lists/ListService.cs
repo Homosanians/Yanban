@@ -52,8 +52,14 @@ public class ListService : IListService
     public async Task<ListDto> RenameAsync(Guid boardId, Guid listId, RenameListRequest request, CancellationToken ct)
     {
         var list = await GetListAsync(boardId, listId, ct);
+
+        // The one line where the old name still exists. After the next statement it is gone from
+        // the process and from the database, and the audit row is the only place it will ever be.
+        var oldName = list.Name;
         list.Name = request.Name.Trim();
-        _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.List, listId, $"Renamed list to \"{list.Name}\"");
+
+        _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.List, listId,
+            $"Renamed list to \"{list.Name}\"", oldValue: oldName, newValue: list.Name);
         await _db.SaveChangesAsync(ct);
         return new ListDto(list.Id, list.BoardId, list.Name, list.Rank);
     }

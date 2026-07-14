@@ -21,12 +21,35 @@ public class ActivityController : BoardScopedController
     public ActivityController(YanbanDbContext db, IAuthorizationService authz, IActivityService activity)
         : base(db, authz) => _activity = activity;
 
+    /// <summary>
+    /// Every filter is optional and they compose. With none of them this is the feed it always was,
+    /// which is why the existing callers did not have to change.
+    /// </summary>
     [HttpGet("boards/{boardId:guid}/activity")]
     public async Task<ActionResult<IReadOnlyList<ActivityDto>>> List(
-        Guid boardId, CancellationToken ct, [FromQuery] int? limit = null, [FromQuery] long? before = null)
+        Guid boardId,
+        CancellationToken ct,
+        [FromQuery] int? limit = null,
+        [FromQuery] long? before = null,
+        [FromQuery] string? q = null,
+        [FromQuery] Guid? actorId = null,
+        [FromQuery] string? action = null,
+        [FromQuery] string? entityType = null,
+        [FromQuery] DateTimeOffset? from = null,
+        [FromQuery] DateTimeOffset? to = null)
     {
         await RequireBoardAsync(boardId, BoardPermission.Read, ct);
-        var take = Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit);
-        return Ok(await _activity.ListAsync(boardId, take, before, ct));
+
+        var query = new ActivityQuery(
+            Limit: Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit),
+            BeforeSequence: before,
+            Search: q,
+            ActorId: actorId,
+            Action: action,
+            EntityType: entityType,
+            From: from,
+            To: to);
+
+        return Ok(await _activity.ListAsync(boardId, query, ct));
     }
 }

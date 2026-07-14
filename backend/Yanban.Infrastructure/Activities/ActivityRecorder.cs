@@ -22,7 +22,14 @@ public class ActivityRecorder : IActivityRecorder
         _currentUser = currentUser;
     }
 
-    public void Record(Guid boardId, ActivityAction action, string entityType, Guid entityId, string? summary = null)
+    public void Record(
+        Guid boardId,
+        ActivityAction action,
+        string entityType,
+        Guid entityId,
+        string? summary = null,
+        string? oldValue = null,
+        string? newValue = null)
     {
         // Every board mutation runs inside an authenticated, board-authorized request,
         // so an actor is always present; its absence is a wiring bug, not a user error.
@@ -38,6 +45,8 @@ public class ActivityRecorder : IActivityRecorder
             EntityType = entityType,
             EntityId = entityId,
             Summary = summary,
+            OldValue = oldValue,
+            NewValue = newValue,
             CreatedAt = DateTimeOffset.UtcNow
         });
     }

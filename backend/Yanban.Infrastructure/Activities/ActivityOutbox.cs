@@ -30,7 +30,8 @@ public class ActivityOutbox : IActivityOutbox
         return rows
             .Select(x => new ActivityDto(
                 x.a.Sequence, x.a.BoardId, x.a.ActorId, x.DisplayName,
-                x.a.Action.ToString(), x.a.EntityType, x.a.EntityId, x.a.Summary, x.a.CreatedAt))
+                x.a.Action.ToString(), x.a.EntityType, x.a.EntityId,
+                x.a.Summary, x.a.OldValue, x.a.NewValue, x.a.CreatedAt))
             .ToList();
     }
 }

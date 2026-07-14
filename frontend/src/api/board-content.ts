@@ -1,6 +1,7 @@
 import { apiFetch } from "../lib/apiClient";
 import type {
   Activity,
+  ActivityFilters,
   Attachment,
   Card,
   CardSearchHit,
@@ -189,8 +190,23 @@ export const deleteTemplate = (boardId: string, templateId: string): Promise<voi
 
 // --- activity ---
 
-/** Newest-first, paged by a `before` sequence cursor (keyset, not offset). */
-export const listActivity = (boardId: string, before?: number): Promise<Activity[]> =>
-  apiFetch<Activity[]>(
-    `/boards/${boardId}/activity?limit=20${before !== undefined ? `&before=${before}` : ""}`,
-  );
+/**
+ * Newest-first, paged by a `before` sequence cursor (keyset, not offset).
+ *
+ * The filters compose with the cursor: paging deeper into a search works exactly like paging deeper
+ * into the plain feed, which is the whole reason the cursor is a sequence and not an offset.
+ */
+export const listActivity = (
+  boardId: string,
+  before?: number,
+  filters: ActivityFilters = {},
+): Promise<Activity[]> => {
+  const params = new URLSearchParams({ limit: "20" });
+  if (before !== undefined) params.set("before", String(before));
+  if (filters.q) params.set("q", filters.q);
+  if (filters.actorId) params.set("actorId", filters.actorId);
+  if (filters.action) params.set("action", filters.action);
+  if (filters.entityType) params.set("entityType", filters.entityType);
+
+  return apiFetch<Activity[]>(`/boards/${boardId}/activity?${params}`);
+};

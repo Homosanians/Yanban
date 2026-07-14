@@ -11,5 +11,17 @@ namespace Yanban.Application.Abstractions;
 /// </summary>
 public interface IActivityRecorder
 {
-    void Record(Guid boardId, ActivityAction action, string entityType, Guid entityId, string? summary = null);
+    /// <summary>
+    /// <paramref name="oldValue"/>/<paramref name="newValue"/> record a rename: what the title or
+    /// name was, and what it became. They are the audit trail's answer to "who changed this, when,
+    /// and from what?" — and they are the only text, besides the summary, that audit search matches.
+    /// </summary>
+    void Record(
+        Guid boardId,
+        ActivityAction action,
+        string entityType,
+        Guid entityId,
+        string? summary = null,
+        string? oldValue = null,
+        string? newValue = null);
 }

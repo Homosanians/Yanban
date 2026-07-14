@@ -77,8 +77,12 @@ public class BoardService : IBoardService
     public async Task<BoardDto> RenameAsync(Guid userId, Guid boardId, RenameBoardRequest request, CancellationToken ct)
     {
         var board = await GetBoardAsync(boardId, ct);
+
+        var oldName = board.Name;
         board.Name = request.Name.Trim();
-        _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.Board, boardId, $"Renamed to \"{board.Name}\"");
+
+        _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.Board, boardId,
+            $"Renamed to \"{board.Name}\"", oldValue: oldName, newValue: board.Name);
         await _db.SaveChangesAsync(ct);
 
         var role = await _db.BoardMembers
