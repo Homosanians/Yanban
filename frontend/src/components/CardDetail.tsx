@@ -16,8 +16,11 @@ import {
   updateCard,
   uploadAttachment,
 } from "../api/board-content";
+import { boardSettingsKeys, getBoardUsage } from "../api/boards";
 import { ApiError } from "../lib/apiClient";
+import { formatBytes } from "../lib/bytes";
 import { isOverdue } from "../lib/due";
+import { useToast } from "../toast/useToast";
 import type { BoardMember } from "../types";
 import { Avatar } from "./Avatar";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -33,6 +36,7 @@ interface Props {
 
 export function CardDetail({ boardId, cardId, members, writable, selfId, onClose }: Props) {
   const queryClient = useQueryClient();
+  const { show } = useToast();
 
   const card = useQuery({
     queryKey: contentKeys.card(boardId, cardId),
@@ -132,10 +136,37 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: contentKeys.comments(boardId, cardId) }),
   });
 
+  // The board's limits, so the UI can say them before you pick a file rather than after.
+  const usage = useQuery({
+    queryKey: boardSettingsKeys.usage(boardId),
+    queryFn: () => getBoardUsage(boardId),
+  });
+
   const upload = useMutation({
     mutationFn: (file: File) => uploadAttachment(boardId, cardId, file),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: contentKeys.attachments(boardId, cardId) }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: contentKeys.attachments(boardId, cardId) });
+      // The bar has to move.
+      void queryClient.invalidateQueries({ queryKey: boardSettingsKeys.usage(boardId) });
+    },
+    // The server's message already names the numbers ("This board has 1.2 GB left of its 50 GB"),
+    // so there is nothing to translate — just show it.
+    onError: (err) => show(err instanceof Error ? err.message : "The upload failed."),
   });
+
+  /**
+   * Refuse an oversized file *here*, without asking the server. The API would reject it too — that
+   * is the real gate, and this is not a security control — but a 2 GB limit you discover only after
+   * a round trip is a worse experience than one you are told about immediately.
+   */
+  const pick = (file: File) => {
+    const max = usage.data?.maxFileBytes;
+    if (max !== undefined && file.size > max) {
+      show(`“${file.name}” is ${formatBytes(file.size)}. The limit is ${formatBytes(max)} per file.`);
+      return;
+    }
+    upload.mutate(file);
+  };
 
   const removeAttachment = useMutation({
     mutationFn: (attachmentId: string) => deleteAttachment(boardId, cardId, attachmentId),
@@ -257,18 +288,22 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
                 {writable && (
                   <label className="file-drop">
                     <Paperclip size={15} />
-                    {upload.isPending ? "Uploading…" : "Attach a file"}
+                    {upload.isPending
+                      ? "Uploading…"
+                      : usage.data
+                        ? `Attach a file — up to ${formatBytes(usage.data.maxFileBytes)}`
+                        : "Attach a file"}
                     <input
                       type="file"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) upload.mutate(file);
+                        if (file) pick(file);
                         e.target.value = "";
                       }}
                     />
                   </label>
                 )}
-                {upload.isError && <p className="error">{(upload.error as Error).message}</p>}
+                {/* The upload error now goes to a toast (pick / upload.onError), so no inline copy. */}
 
                 {attachments.data?.map((a) => (
                   <div key={a.id} className="attachment">

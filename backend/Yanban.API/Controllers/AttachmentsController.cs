@@ -26,6 +26,17 @@ public class AttachmentsController : BoardScopedController
         return Ok(await _attachments.RequestUploadAsync(boardId, cardId, request, ct));
     }
 
+    /// <summary>
+    /// Read, not Write: a viewer can see how full the board is. It is a property of the board, and
+    /// hiding it from the people who can see everything on it would be an odd secret to keep.
+    /// </summary>
+    [HttpGet("boards/{boardId:guid}/usage")]
+    public async Task<ActionResult<BoardUsageDto>> Usage(Guid boardId, CancellationToken ct)
+    {
+        await RequireBoardAsync(boardId, BoardPermission.Read, ct);
+        return Ok(await _attachments.GetUsageAsync(boardId, ct));
+    }
+
     [HttpPost("boards/{boardId:guid}/cards/{cardId:guid}/attachments/{attachmentId:guid}/complete")]
     public async Task<ActionResult<AttachmentDto>> Complete(Guid boardId, Guid cardId, Guid attachmentId, CancellationToken ct)
     {

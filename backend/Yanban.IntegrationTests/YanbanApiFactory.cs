@@ -45,6 +45,12 @@ public class YanbanApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("S3__AccessKey", _minio.GetAccessKey());
         Environment.SetEnvironmentVariable("S3__SecretKey", _minio.GetSecretKey());
         Environment.SetEnvironmentVariable("S3__Bucket", "yanban-attachments-test");
+
+        // Quotas shrunk to something a test can actually fill. Production is 2 GiB per file and
+        // 50 GiB per board (QuotaOptions); nothing here would notice the difference except the
+        // clock, and a test that has to move 50 GiB to prove a limit is not a test anyone will run.
+        Environment.SetEnvironmentVariable("Quota__MaxFileBytes", "1048576");    // 1 MiB
+        Environment.SetEnvironmentVariable("Quota__MaxBoardBytes", "5242880");   // 5 MiB
     }
 
     async Task IAsyncLifetime.DisposeAsync()

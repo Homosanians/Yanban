@@ -121,6 +121,25 @@ export interface Activity {
   createdAt: string;
 }
 
+/** What a board is holding, against what it may hold. `usedBytes` counts completed files only. */
+export interface BoardUsage {
+  usedBytes: number;
+  maxBoardBytes: number;
+  maxFileBytes: number;
+  fileCount: number;
+}
+
+export type NotificationType =
+  | "CardAssigned"
+  | "CardUnassigned"
+  | "AssignedCardMoved"
+  | "CommentCreated";
+
+export interface NotificationPreference {
+  type: NotificationType;
+  enabled: boolean;
+}
+
 /** Every field optional and they compose; none of them is the plain newest-first feed. */
 export interface ActivityFilters {
   q?: string;

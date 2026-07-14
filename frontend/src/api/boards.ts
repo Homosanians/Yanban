@@ -1,5 +1,12 @@
 import { apiFetch } from "../lib/apiClient";
-import type { Board, BoardMember, BoardRole } from "../types";
+import type {
+  Board,
+  BoardMember,
+  BoardRole,
+  BoardUsage,
+  NotificationPreference,
+  NotificationType,
+} from "../types";
 
 export const boardKeys = {
   all: ["boards"] as const,
@@ -18,6 +25,29 @@ export const getBoard = (boardId: string): Promise<Board> => apiFetch<Board>(`/b
  */
 export const createBoard = (name: string, seedDefaultLists = false): Promise<Board> =>
   apiFetch<Board>("/boards", { method: "POST", body: { name, seedDefaultLists } });
+
+// --- storage & notifications (the board settings panel) ---
+
+export const boardSettingsKeys = {
+  usage: (boardId: string) => ["boards", boardId, "usage"] as const,
+  notifications: (boardId: string) => ["boards", boardId, "notification-preferences"] as const,
+};
+
+export const getBoardUsage = (boardId: string): Promise<BoardUsage> =>
+  apiFetch<BoardUsage>(`/boards/${boardId}/usage`);
+
+export const getNotificationPreferences = (boardId: string): Promise<NotificationPreference[]> =>
+  apiFetch<NotificationPreference[]>(`/boards/${boardId}/notification-preferences`);
+
+export const setNotificationPreference = (
+  boardId: string,
+  type: NotificationType,
+  enabled: boolean,
+): Promise<void> =>
+  apiFetch<void>(`/boards/${boardId}/notification-preferences`, {
+    method: "PUT",
+    body: { type, enabled },
+  });
 
 export const renameBoard = (boardId: string, name: string): Promise<Board> =>
   apiFetch<Board>(`/boards/${boardId}`, { method: "PUT", body: { name } });

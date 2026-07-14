@@ -169,10 +169,12 @@ public class AttachmentEndpointsTests
         var client = NewClient();
         var (token, _, boardId, cardId) = await SeedCardAsync(client);
 
-        // Declared size over the 10 MiB cap is rejected before any URL is issued.
+        // Over the per-file cap, rejected before any URL is issued. 413 rather than 400 since M14:
+        // the request is well-formed and the caller is entitled to make it — the payload is simply
+        // too large, which is a thing a client can say something useful about.
         var res = await client.SendAsync(Authed(HttpMethod.Post, $"/boards/{boardId}/cards/{cardId}/attachments",
             token, new { fileName = "big.bin", contentType = "application/octet-stream", sizeBytes = 20_000_000 }));
-        res.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        res.StatusCode.ShouldBe(HttpStatusCode.RequestEntityTooLarge);
     }
 
     [Fact]

@@ -79,6 +79,12 @@ public static class DependencyInjection
                 : S3ClientFactory.Create(o.PublicEndpoint, o);
         });
         services.AddSingleton<IObjectStorage, S3ObjectStorage>();
+
+        // The quota is the same for every board today, so the policy is a singleton over options.
+        // The *interface* is what matters: a per-board or per-plan policy replaces this without
+        // AttachmentService knowing (ADR-17).
+        services.Configure<QuotaOptions>(configuration.GetSection(QuotaOptions.SectionName));
+        services.AddSingleton<IBoardQuotaPolicy, ConfiguredBoardQuotaPolicy>();
         services.AddScoped<IAttachmentService, AttachmentService>();
 
         return services;

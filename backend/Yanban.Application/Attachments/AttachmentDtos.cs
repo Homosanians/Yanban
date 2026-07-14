@@ -21,3 +21,10 @@ public record AttachmentDto(
     Guid UploadedById, DateTimeOffset CreatedAt);
 
 public record DownloadUrlDto(string DownloadUrl, DateTimeOffset ExpiresAt);
+
+/// <summary>
+/// What a board is holding, and what it is allowed to hold. <paramref name="UsedBytes"/> counts only
+/// completed attachments — a half-finished upload holds a reservation against the quota, but showing
+/// it in the bar would be baffling to look at.
+/// </summary>
+public record BoardUsageDto(long UsedBytes, long MaxBoardBytes, long MaxFileBytes, int FileCount);

@@ -11,7 +11,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import type { CollisionDetection, DragEndEvent, DragStartEvent } from "@dnd-kit/core";
-import { ArrowLeft, History, LayoutTemplate, LogOut, Plus, Search, Users } from "lucide-react";
+import { ArrowLeft, History, LayoutTemplate, LogOut, Plus, Search, Settings, Users } from "lucide-react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { boardKeys, getBoard, listMembers } from "../api/boards";
 import { assignCard, contentKeys, createList, listCards, listLists, moveCard } from "../api/board-content";
@@ -27,9 +27,11 @@ import { MembersPanel } from "../components/MembersPanel";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { TemplatesPanel } from "../components/TemplatesPanel";
 import { CommandPalette } from "../components/CommandPalette";
+import { BoardSettingsPanel } from "../components/BoardSettingsPanel";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { useToast } from "../toast/useToast";
 
-type SidePanel = "members" | "activity" | "templates" | null;
+type SidePanel = "members" | "activity" | "templates" | "settings" | null;
 
 /**
  * Pointer-first collision detection — and the reason a card no longer flickers between two slots
@@ -64,13 +66,15 @@ export function BoardPage() {
   const { boardId = "" } = useParams();
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
+  // One toast mechanism for the whole app (M14). This used to be a `dragError` useState right here,
+  // which meant a failed upload in the card drawer had nowhere to go.
+  const { show } = useToast();
 
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [panel, setPanel] = useState<SidePanel>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [addingList, setAddingList] = useState(false);
   const [newListName, setNewListName] = useState("");
-  const [dragError, setDragError] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
 
@@ -136,7 +140,7 @@ export function BoardPage() {
     },
     onError: (err, _v, ctx) => {
       if (ctx) queryClient.setQueryData(ctx.key, ctx.snapshot);
-      setDragError(err instanceof Error ? err.message : "Could not assign the card.");
+      show(err instanceof Error ? err.message : "Could not assign the card.");
     },
     onSettled: (_d, _e, _v, ctx) => {
       if (ctx) void queryClient.invalidateQueries({ queryKey: ctx.key });
@@ -252,7 +256,6 @@ export function BoardPage() {
       queryClient.setQueryData(targetKey, inserted);
     }
 
-    setDragError(null);
     try {
       await moveCard(boardId, cardId, targetListId, position);
     } catch (err) {
@@ -260,7 +263,7 @@ export function BoardPage() {
       // and leaving the optimistic position on screen would be a lie.
       queryClient.setQueryData(sourceKey, sourceSnapshot);
       queryClient.setQueryData(targetKey, targetSnapshot);
-      setDragError(err instanceof Error ? err.message : "Could not move the card.");
+      show(err instanceof Error ? err.message : "Could not move the card.");
     } finally {
       // Ranks are the server's to assign — refetch rather than trust our guess at the order.
       void queryClient.invalidateQueries({ queryKey: sourceKey });
@@ -333,6 +336,13 @@ export function BoardPage() {
             onClick={() => togglePanel("activity")}
           >
             <History size={17} />
+          </button>
+          <button
+            className={panel === "settings" ? "icon-btn on" : "icon-btn"}
+            aria-label="Board settings" title="Board settings"
+            onClick={() => togglePanel("settings")}
+          >
+            <Settings size={17} />
           </button>
 
           <span className="divider" />
@@ -422,6 +432,9 @@ export function BoardPage() {
         {panel === "templates" && (
           <TemplatesPanel boardId={boardId} writable={writable} onClose={() => setPanel(null)} />
         )}
+        {panel === "settings" && (
+          <BoardSettingsPanel boardId={boardId} onClose={() => setPanel(null)} />
+        )}
       </div>
 
       {paletteOpen && (
@@ -437,10 +450,6 @@ export function BoardPage() {
           selfId={user?.id ?? ""}
           onClose={() => setOpenCardId(null)}
         />
-      )}
-
-      {dragError && (
-        <p className="toast" onClick={() => setDragError(null)}>{dragError}</p>
       )}
     </div>
   );

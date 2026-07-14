@@ -16,4 +16,7 @@ public interface IAttachmentService
     Task<DownloadUrlDto> GetDownloadUrlAsync(Guid boardId, Guid cardId, Guid attachmentId, CancellationToken ct);
 
     Task DeleteAsync(Guid boardId, Guid cardId, Guid attachmentId, CancellationToken ct);
+
+    /// <summary>What the board is storing, against what it is allowed to store.</summary>
+    Task<BoardUsageDto> GetUsageAsync(Guid boardId, CancellationToken ct);
 }

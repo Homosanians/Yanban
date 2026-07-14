@@ -41,6 +41,17 @@ public sealed class ConflictAppException : AppException
     public ConflictAppException(string message) : base(message) { }
 }
 
+/// <summary>
+/// The file, or the board it would land on, is over its limit. 413 rather than 400: the request is
+/// well-formed and the caller is entitled to make it — the payload is simply too large, and the
+/// client can say something useful about that.
+/// </summary>
+public sealed class QuotaExceededAppException : AppException
+{
+    public override int StatusCode => 413;
+    public QuotaExceededAppException(string message) : base(message) { }
+}
+
 /// <summary>The client omitted a required precondition (e.g. an <c>If-Match</c> header).</summary>
 public sealed class PreconditionRequiredAppException : AppException
 {

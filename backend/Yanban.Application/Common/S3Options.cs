@@ -29,6 +29,7 @@ public class S3Options
     /// <summary>How long issued presigned upload/download URLs stay valid.</summary>
     public int PresignExpiryMinutes { get; set; } = 15;
 
-    /// <summary>Upper bound on a single attachment's declared size (default 10 MiB).</summary>
-    public long MaxUploadBytes { get; set; } = 10 * 1024 * 1024;
+    // The per-file cap used to live here as MaxUploadBytes. It moved to QuotaOptions, behind
+    // IBoardQuotaPolicy (ADR-17): how large a file may be is a policy about a *board*, not a fact
+    // about the storage backend, and it now has to be decided in the same breath as the board total.
 }

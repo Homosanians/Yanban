@@ -967,19 +967,59 @@ kbd {
 .confirm .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .overlay.above { z-index: 60; }
 
-/* --- toast -------------------------------------------------------------- */
+/* --- toasts -------------------------------------------------------------
+   A stack, bottom-centre. They pile up rather than replace: two things failing at once is exactly
+   when you least want the first message eaten. Owned by ToastProvider (M14). */
 
-.toast {
+.toasts {
   position: fixed;
   bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 70;
-  background: var(--danger);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(460px, calc(100vw - 32px));
+  pointer-events: auto;
   color: #fff;
   font-size: 13px;
   font-weight: 550;
-  padding: 9px 14px;
+  padding: 8px 8px 8px 16px;
   border-radius: 999px;
   box-shadow: var(--shadow-lg);
 }
+.toast.error { background: var(--danger); }
+.toast.info { background: var(--text); color: var(--bg); }
+.toast .icon-btn { width: 26px; height: 26px; color: inherit; flex: 0 0 auto; }
+.toast .icon-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); color: inherit; }
+
+/* --- storage meter (board settings) ------------------------------------- */
+
+.usage-figure { font-size: 14px; }
+.usage-figure strong { font-weight: 650; }
+
+/* A real <progress>, restyled: the platform already gives it the right semantics. */
+.meter {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.meter::-webkit-progress-bar { background: var(--surface-3); border-radius: 999px; }
+.meter::-webkit-progress-value { background: var(--accent); border-radius: 999px; transition: width var(--fast); }
+.meter::-moz-progress-bar { background: var(--accent); border-radius: 999px; }
+/* Nearly full is a warning, not decoration — turn the bar red as it approaches the cap. */
+.meter.full::-webkit-progress-value { background: var(--danger); }
+.meter.full::-moz-progress-bar { background: var(--danger); }

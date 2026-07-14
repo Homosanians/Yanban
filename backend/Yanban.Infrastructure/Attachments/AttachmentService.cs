@@ -15,27 +15,62 @@ public class AttachmentService : IAttachmentService
     private readonly IObjectStorage _storage;
     private readonly ICurrentUser _currentUser;
     private readonly IActivityRecorder _activity;
+    private readonly IBoardQuotaPolicy _quota;
     private readonly S3Options _options;
 
     public AttachmentService(
         YanbanDbContext db, IObjectStorage storage, ICurrentUser currentUser,
-        IActivityRecorder activity, IOptions<S3Options> options)
+        IActivityRecorder activity, IBoardQuotaPolicy quota, IOptions<S3Options> options)
     {
         _db = db;
         _storage = storage;
         _currentUser = currentUser;
         _activity = activity;
+        _quota = quota;
         _options = options.Value;
     }
 
     private TimeSpan Expiry => TimeSpan.FromMinutes(_options.PresignExpiryMinutes);
 
+    /// <summary>
+    /// Mints a presigned PUT — and is the <b>one</b> place the quota is enforced.
+    ///
+    /// <para>Serialized on the board row (ADR-14, the same idiom as the move lock). The check is a
+    /// read followed by a write, and two callers who each read "49 GB used" would each conclude
+    /// they had room for another gigabyte. With the lock they queue, and the second one reads what
+    /// the first actually committed.</para>
+    ///
+    /// <para>Pending rows count against the board. <b>A ticket is a reservation</b>: without that,
+    /// two concurrent 2 GB uploads both pass a check that neither could pass second, and the board
+    /// sails past its limit while both are still in flight. The cost is that an abandoned ticket
+    /// holds space until the worker's reaper sweeps it (M15) — a bounded, self-healing leak, which
+    /// is the better failure.</para>
+    /// </summary>
     public async Task<UploadTicketDto> RequestUploadAsync(Guid boardId, Guid cardId, CreateAttachmentRequest request, CancellationToken ct)
     {
         await EnsureCardOnBoardAsync(boardId, cardId, ct);
 
-        if (request.SizeBytes > _options.MaxUploadBytes)
-            throw new ValidationAppException($"Attachment exceeds the maximum size of {_options.MaxUploadBytes} bytes.");
+        var quota = await _quota.GetAsync(boardId, ct);
+
+        // Cheap and unconditional: a 3 GB file is refused before we bother locking anything.
+        if (request.SizeBytes > quota.MaxFileBytes)
+            throw new QuotaExceededAppException(
+                $"That file is {Format(request.SizeBytes)}. The limit is {Format(quota.MaxFileBytes)} per file.");
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        // `boards` has no concurrency token, so SELECT * is safe for FromSql, and ToListAsync runs
+        // the statement verbatim so FOR UPDATE stays at the top level.
+        await _db.Boards.FromSql($"SELECT * FROM boards WHERE id = {boardId} FOR UPDATE").ToListAsync(ct);
+
+        // Read *after* the lock: a caller that queued behind another upload wakes and sums what
+        // actually committed, not the snapshot it arrived with.
+        var used = await UsedBytesAsync(boardId, ct);
+
+        if (used + request.SizeBytes > quota.MaxBoardBytes)
+            throw new QuotaExceededAppException(
+                $"This board has {Format(quota.MaxBoardBytes - used)} left of its {Format(quota.MaxBoardBytes)}. " +
+                $"That file is {Format(request.SizeBytes)}.");
 
         var id = Guid.NewGuid();
         var attachment = new Attachment
@@ -52,10 +87,52 @@ public class AttachmentService : IAttachmentService
         };
         _db.Attachments.Add(attachment);
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         // No activity yet: a pending upload may never complete. It is logged on completion.
         var (url, expiresAt) = _storage.CreateUploadUrl(attachment.StorageKey, attachment.ContentType, Expiry);
         return new UploadTicketDto(id, "PUT", url, attachment.ContentType, expiresAt);
+    }
+
+    public async Task<BoardUsageDto> GetUsageAsync(Guid boardId, CancellationToken ct)
+    {
+        var quota = await _quota.GetAsync(boardId, ct);
+
+        // The bar shows what is *there*, not what is merely spoken for: counting a stranger's
+        // half-finished upload as used space would be baffling to look at.
+        var ready = await _db.Attachments
+            .Where(a => a.Card.List.BoardId == boardId && a.Status == AttachmentStatus.Ready)
+            .ToListAsync(ct);
+
+        return new BoardUsageDto(
+            ready.Sum(a => a.SizeBytes),
+            quota.MaxBoardBytes,
+            quota.MaxFileBytes,
+            ready.Count);
+    }
+
+    /// <summary>
+    /// What the board is holding *and* what it has promised to hold. Pending rows are reservations —
+    /// see <see cref="RequestUploadAsync"/>.
+    /// </summary>
+    private Task<long> UsedBytesAsync(Guid boardId, CancellationToken ct) =>
+        _db.Attachments
+            .Where(a => a.Card.List.BoardId == boardId
+                        && (a.Status == AttachmentStatus.Ready || a.Status == AttachmentStatus.Pending))
+            .SumAsync(a => a.SizeBytes, ct);
+
+    /// <summary>Bytes as a person would say them — this text goes straight into a toast.</summary>
+    private static string Format(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+        return $"{value:0.#} {units[unit]}";
     }
 
     /// <summary>
