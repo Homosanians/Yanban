@@ -1,5 +1,4 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Archive, ArchiveRestore, LogOut, Plus, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,14 +9,13 @@ import type { Board } from "../types";
 import { Avatar } from "../components/Avatar";
 import { colorFor } from "../lib/color";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { NewBoardDialog } from "../components/NewBoardDialog";
 import { ThemeToggle } from "../components/ThemeToggle";
 
 export function BoardsPage() {
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
 
-  const [name, setName] = useState("");
-  const [seed, setSeed] = useState(true);
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Board | null>(null);
 
@@ -26,9 +24,8 @@ export function BoardsPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: boardKeys.all });
 
   const create = useMutation({
-    mutationFn: (boardName: string) => createBoard(boardName, seed),
+    mutationFn: (v: { name: string; seed: boolean }) => createBoard(v.name, v.seed),
     onSuccess: () => {
-      setName("");
       setCreating(false);
       void invalidate();
     },
@@ -46,11 +43,6 @@ export function BoardsPage() {
       void invalidate();
     },
   });
-
-  const onCreate = (e: FormEvent) => {
-    e.preventDefault();
-    if (name.trim()) create.mutate(name.trim());
-  };
 
   return (
     <div className="page">
@@ -77,7 +69,6 @@ export function BoardsPage() {
 
         {boards.isLoading && <p className="muted">Loading boards…</p>}
         {boards.isError && <p className="error">{(boards.error as Error).message}</p>}
-        {create.isError && <p className="error">{(create.error as Error).message}</p>}
 
         <div className="bento">
           {/* The newest board gets the big cell — it is the one you almost always want. */}
@@ -136,38 +127,26 @@ export function BoardsPage() {
           ))}
 
           <div className="tile ghost">
-            {creating ? (
-              <form onSubmit={onCreate}>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Escape" && setCreating(false)}
-                  placeholder="Board name"
-                  maxLength={200}
-                  autoFocus
-                />
-                <label className="check">
-                  <input type="checkbox" checked={seed} onChange={(e) => setSeed(e.target.checked)} />
-                  Start with Backlog · To Do · Doing · Done
-                </label>
-                <div className="row">
-                  <button type="submit" disabled={!name.trim() || create.isPending}>Create</button>
-                  <button type="button" className="ghost" onClick={() => setCreating(false)}>Cancel</button>
-                </div>
-              </form>
-            ) : (
-              <button className="ghost-cta" onClick={() => setCreating(true)}>
-                <Plus size={18} />
-                New board
-              </button>
-            )}
+            <button className="ghost-cta" onClick={() => setCreating(true)}>
+              <Plus size={18} />
+              New board
+            </button>
           </div>
         </div>
 
-        {boards.data?.length === 0 && !creating && (
+        {boards.data?.length === 0 && (
           <p className="empty">No boards yet — the tile above makes one.</p>
         )}
       </main>
+
+      {creating && (
+        <NewBoardDialog
+          pending={create.isPending}
+          error={create.isError ? (create.error as Error).message : null}
+          onCreate={(name, seed) => create.mutate({ name, seed })}
+          onCancel={() => { create.reset(); setCreating(false); }}
+        />
+      )}
 
       {pendingDelete && (
         <ConfirmDialog

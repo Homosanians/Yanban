@@ -153,10 +153,12 @@ button.ghost {
 }
 button.ghost:hover:not(:disabled) { background: var(--surface-3); color: var(--text); }
 
-button.danger { background: var(--danger); color: #fff; }
-button.danger:hover:not(:disabled) { background: var(--danger); filter: brightness(1.08); }
-button.ghost.danger { background: transparent; color: var(--danger); }
-button.ghost.danger:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+/* `.danger` fills a text button, and only tints the glyph of an icon button. The :not() is what
+   keeps those two apart: `button.danger` (0,1,1) out-specifies `.icon-btn` (0,1,0), so without it
+   every icon-only delete button in the app took the filled background — and, since `.icon-btn.danger`
+   (0,2,0) then wins the colour, painted its glyph red on red. A red rectangle. */
+button.danger:not(.icon-btn) { background: var(--danger); color: #fff; }
+button.danger:not(.icon-btn):hover:not(:disabled) { background: var(--danger); filter: brightness(1.08); }
 
 button.link {
   background: none;
@@ -182,7 +184,9 @@ button.link:hover { background: none; color: var(--accent); text-decoration: und
 .icon-btn:hover:not(:disabled) { background: var(--surface-3); color: var(--text); }
 .icon-btn.on { background: var(--accent-soft); color: var(--accent); }
 .icon-btn.danger { color: var(--danger); }
-.icon-btn.danger:hover:not(:disabled) { background: var(--danger-soft); }
+/* Restates the colour because the plain `.icon-btn:hover` rule (0,3,0) out-specifies
+   `.icon-btn.danger` (0,2,0) and would otherwise grey the glyph out on the way in. */
+.icon-btn.danger:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
 
 /* --- primitives -------------------------------------------------------- */
 
@@ -458,17 +462,18 @@ kbd {
   height: 100%;
 }
 .tile.ghost .ghost-cta:hover { background: none; }
-.tile.ghost form { display: flex; flex-direction: column; gap: 8px; }
-.tile.ghost .check {
+
+/* `label` is a column by default (caption over control); a checkbox wants the opposite. */
+.check {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-muted);
   cursor: pointer;
 }
-.tile.ghost .check input { width: auto; min-width: 0; accent-color: var(--accent); }
+.check input { width: auto; min-width: 0; accent-color: var(--accent); }
 
 /* --- board ------------------------------------------------------------- */
 
@@ -576,6 +581,29 @@ kbd {
 .chip.overdue { background: var(--danger-soft); color: var(--danger); }
 .card-meta .avatar { margin-left: auto; }
 
+/* The overdue flag. It sits in the flow, right-aligned above the title, rather than absolutely in
+   the corner: a 500-character title would run underneath a floating badge, and the one card that
+   most needs to be legible is the late one. */
+.card-flags { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+.flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+/* A `label` is a flex column (text over control); this puts the text itself back on a row so the
+   overdue flag can sit beside it. */
+.label-row { display: flex; align-items: center; gap: 6px; }
+
 /* --- add affordances ---------------------------------------------------
    Quiet until wanted: invisible at rest, revealed on hover, and — critically — on
    :focus-within, so a keyboard user can still Tab straight to it. */
@@ -608,6 +636,9 @@ kbd {
 }
 .add-form .row { justify-content: flex-start; }
 .add-form button { padding: 6px 12px; }
+/* Stamping a template is the same act as typing a title, so it belongs in the same composer
+   rather than three clicks away in the Templates panel. */
+.add-form select { font-size: 13px; color: var(--text-muted); }
 
 /* The ghost column shrink-wraps rather than stretching: it is an affordance, not a list. */
 .add-column {
@@ -822,7 +853,8 @@ kbd {
   font-size: 13px;
 }
 
-/* --- confirm dialog ----------------------------------------------------- */
+/* --- dialogs ------------------------------------------------------------
+   One shell for every centred dialog: the destructive-action confirm, and the new-board form. */
 
 .confirm-wrap {
   position: fixed;
@@ -846,6 +878,7 @@ kbd {
   gap: 12px;
 }
 .confirm h2 { font-size: 16px; }
+.confirm form { display: flex; flex-direction: column; gap: 12px; }
 .confirm .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .overlay.above { z-index: 60; }
 

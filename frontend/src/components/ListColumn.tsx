@@ -3,8 +3,15 @@ import type { FormEvent, KeyboardEvent } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { contentKeys, createCard, deleteList, renameList } from "../api/board-content";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  contentKeys,
+  createCard,
+  createCardFromTemplate,
+  deleteList,
+  listTemplates,
+  renameList,
+} from "../api/board-content";
 import type { BoardList, BoardMember, Card } from "../types";
 import { CardTile } from "./CardTile";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -33,11 +40,33 @@ export function ListColumn({
   // cards to aim at.
   const { setNodeRef, isOver } = useDroppable({ id: list.id });
 
+  const cardsKey = contentKeys.cards(boardId, list.id);
+
   const add = useMutation({
     mutationFn: (cardTitle: string) => createCard(boardId, list.id, cardTitle),
     onSuccess: () => {
       setTitle("");
-      void queryClient.invalidateQueries({ queryKey: contentKeys.cards(boardId, list.id) });
+      void queryClient.invalidateQueries({ queryKey: cardsKey });
+    },
+  });
+
+  // Only while the composer is open: a read-only board, or a board nobody is adding to, has no
+  // reason to fetch templates at all. Every column shares the one query key, so the columns that
+  // *are* open resolve to a single request.
+  const templates = useQuery({
+    queryKey: contentKeys.templates(boardId),
+    queryFn: () => listTemplates(boardId),
+    enabled: writable && adding,
+  });
+
+  const fromTemplate = useMutation({
+    // Whatever is already in the composer wins as the title — you typed it on purpose. Leave it
+    // empty and the template's own title is used.
+    mutationFn: (templateId: string) =>
+      createCardFromTemplate(boardId, list.id, templateId, title.trim() || undefined),
+    onSuccess: () => {
+      setTitle("");
+      void queryClient.invalidateQueries({ queryKey: cardsKey });
     },
   });
 
@@ -146,6 +175,25 @@ export function ListColumn({
             maxLength={500}
             autoFocus
           />
+
+          {templates.data && templates.data.length > 0 && (
+            // Stays on the placeholder: this is an action, not a setting. Picking a template
+            // creates the card there and then, and the control resets for the next one.
+            <select
+              value=""
+              aria-label="Add a card from a template"
+              disabled={fromTemplate.isPending}
+              onChange={(e) => {
+                if (e.target.value) fromTemplate.mutate(e.target.value);
+              }}
+            >
+              <option value="">From a template…</option>
+              {templates.data.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          )}
+
           <div className="row">
             <button type="button" onClick={submitCard} disabled={!title.trim() || add.isPending}>
               Add card
@@ -158,6 +206,9 @@ export function ListColumn({
               Cancel
             </button>
           </div>
+
+          {add.isError && <p className="error">{(add.error as Error).message}</p>}
+          {fromTemplate.isError && <p className="error">{(fromTemplate.error as Error).message}</p>}
         </div>
       ) : (
         <button className="add-trigger" onClick={() => setAdding(true)}>

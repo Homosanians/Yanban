@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { Download, Paperclip, Trash2, X } from "lucide-react";
+import { AlertTriangle, Download, Paperclip, Trash2, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   assignCard,
@@ -17,6 +17,7 @@ import {
   uploadAttachment,
 } from "../api/board-content";
 import { ApiError } from "../lib/apiClient";
+import { isOverdue } from "../lib/due";
 import type { BoardMember } from "../types";
 import { Avatar } from "./Avatar";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -55,7 +56,10 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
 
   // Load the server's copy into the form. Runs again after a conflict refetch, which is how
   // the user gets to see what the other person actually wrote.
-  useEffect(() => {
+  //
+  // Layout, not passive: a plain useEffect runs *after* paint, so the drawer rendered one frame
+  // with an empty title box before filling it in.
+  useLayoutEffect(() => {
     if (!card.data) return;
     setTitle(card.data.title);
     setDescription(card.data.description ?? "");
@@ -204,7 +208,17 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
                 </label>
                 <div className="row">
                   <label className="grow">
-                    Due date
+                    <span className="label-row">
+                      Due date
+                      {/* Read from the saved card, not from the input beside it: the flag reports
+                          what the board is showing everyone else, not a date you are still typing. */}
+                      {isOverdue(card.data.dueDate) && (
+                        <span className="flag">
+                          <AlertTriangle size={10} />
+                          Overdue
+                        </span>
+                      )}
+                    </span>
                     <input
                       type="date"
                       value={dueDate}

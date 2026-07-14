@@ -1,7 +1,8 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarDays } from "lucide-react";
+import { AlertTriangle, CalendarDays } from "lucide-react";
 import type { BoardMember, Card } from "../types";
+import { formatDue, isOverdue } from "../lib/due";
 import { Avatar } from "./Avatar";
 
 interface FaceProps {
@@ -12,17 +13,24 @@ interface FaceProps {
 /** The card's contents, with no drag machinery — shared by the real tile and the drag overlay. */
 function CardFace({ card, members }: FaceProps) {
   const assignee = members.find((m) => m.userId === card.assigneeId);
-  const due = card.dueDate ? new Date(card.dueDate) : null;
-  const overdue = due !== null && due.getTime() < Date.now();
+  const overdue = isOverdue(card.dueDate);
 
   return (
     <>
+      {overdue && (
+        <div className="card-flags">
+          <span className="flag">
+            <AlertTriangle size={10} />
+            Overdue
+          </span>
+        </div>
+      )}
       <p className="card-title">{card.title}</p>
       <div className="card-meta">
-        {due && (
+        {card.dueDate && (
           <span className={overdue ? "chip overdue" : "chip"}>
             <CalendarDays size={11} />
-            {due.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+            {formatDue(card.dueDate)}
           </span>
         )}
         {assignee && <Avatar email={assignee.email} name={assignee.displayName} size="sm" />}
