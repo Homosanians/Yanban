@@ -15,6 +15,7 @@ import { ArrowLeft, History, LayoutTemplate, LogOut, Plus, Search, Settings, Use
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { boardKeys, getBoard, listMembers } from "../api/boards";
 import { assignCard, contentKeys, createList, listCards, listLists, moveCard } from "../api/board-content";
+import { ApiError } from "../lib/apiClient";
 import { useAuth } from "../auth/useAuth";
 import { useBoardRealtime } from "../realtime/useBoardRealtime";
 import { canWrite } from "../types";
@@ -319,7 +320,20 @@ export function BoardPage() {
       // and leaving the optimistic position on screen would be a lie.
       queryClient.setQueryData(sourceKey, sourceSnapshot);
       queryClient.setQueryData(targetKey, targetSnapshot);
-      show(err instanceof Error ? err.message : "Could not move the card.");
+
+      // A 409 is the optimistic-concurrency conflict (ADR-6): someone else moved this same card
+      // first, and won. Their target may be a third list — neither our source nor our target — so
+      // the finally below, which only refetches those two, would never fetch the card's real
+      // home and it would sit missing until realtime happened to catch up. Invalidate the whole
+      // board so the loser converges to the winner's column immediately, and say what happened in
+      // words that match: the card is *not* lost and there is nothing to retry, so don't tell them
+      // to reload as the generic server message does.
+      if (err instanceof ApiError && err.status === 409) {
+        void queryClient.invalidateQueries({ queryKey: ["boards", boardId] });
+        show("Someone else moved this card first — showing where it is now.");
+      } else {
+        show(err instanceof Error ? err.message : "Could not move the card.");
+      }
     } finally {
       // Ranks are the server's to assign — refetch rather than trust our guess at the order.
       void queryClient.invalidateQueries({ queryKey: sourceKey });
@@ -414,6 +428,13 @@ export function BoardPage() {
       <div className="board-body">
         <DndContext
           sensors={sensors}
+          // dnd-kit's built-in auto-scroll ramps against the *viewport* edge, so hovering a card in
+          // a right-hand column (well inside the window, but within its scroll band) silently scrolled
+          // the whole board sideways — sliding the drop target out from under the cursor, which left
+          // `over` null and made drops onto those cards fail. Its only effect here was that harmful
+          // horizontal scroll: the board never scrolls vertically (`.board-body` is overflow:hidden),
+          // and reaching cards below a tall column's fold is handled by our own `runAutoScroll` below.
+          autoScroll={false}
           collisionDetection={collisionDetection}
           // Cards appear, vanish and reflow under the pointer; stale rects would send a drop to
           // the wrong slot.

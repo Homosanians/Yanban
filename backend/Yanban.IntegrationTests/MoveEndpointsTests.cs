@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Npgsql;
 using Shouldly;
 using Xunit;
 using Yanban.Application.Auth;
@@ -247,5 +248,68 @@ public class MoveEndpointsTests
         moved.Select(x => x.Rank).Distinct().Count().ShouldBe(n + 2);   // no collisions
         moved.Select(x => x.Rank).ShouldBe(moved.Select(x => x.Rank).OrderBy(r => r, StringComparer.Ordinal));
         (await ListCardsAsync(client, token, board.Id, source.Id)).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// The conflict the whole move design turns on (ADR-6): two clients grab the <b>same</b> card at
+    /// the same version and move it to <b>different</b> lists at the same instant. This is not the
+    /// rank-collision race above — those movers touch distinct card rows and the two target-list
+    /// locks are different rows, so nothing there serializes <i>this</i> pair. What guards them is the
+    /// card's <c>xmin</c> token: exactly one move commits, the other's <c>UPDATE … WHERE xmin=V</c>
+    /// matches nothing and surfaces as a 409. First-committer-wins; the card is never duplicated or
+    /// stranded.
+    ///
+    /// <para>Racing two HTTP calls would almost never land inside the window — both would have to read
+    /// the card before either commits, and the loser usually just reads the winner's result and moves
+    /// <i>that</i> instead (a legitimate sequential move, not a conflict). So the interleaving is
+    /// forced: one move is replayed on a held-open transaction that holds the card's row lock at
+    /// version V, then the real HTTP move arrives, blocks on that lock, and only wakes — to find V
+    /// gone — once the first commits. (Same technique as <c>AssigningWhileTheMemberIsRemoved</c> in
+    /// <see cref="ConcurrencyTests"/>.)</para>
+    /// </summary>
+    [Fact]
+    public async Task ConcurrentMovesOfOneCardToDifferentLists_LetExactlyOneThrough()
+    {
+        var client = NewClient();
+        var (token, _) = await RegisterAsync(client);
+        var board = await CreateBoardAsync(client, token);
+        var source = await CreateListAsync(client, token, board.Id, "Source");
+        var toB = await CreateListAsync(client, token, board.Id, "Column B");
+        var toC = await CreateListAsync(client, token, board.Id, "Column C");
+        var card = await CreateCardAsync(client, token, board.Id, source.Id, "Card");
+
+        await using var conn = new NpgsqlConnection(_factory.ConnectionString);
+        await conn.OpenAsync();
+        await using var winner = await conn.BeginTransactionAsync();
+
+        // Replay client A's move into column B and stop before commit, holding the card's row lock
+        // at the version every mover loaded. Any other UPDATE of this row now blocks here. (Locking
+        // the target list too mirrors MoveAsync exactly; it is not what makes this test bite.)
+        await ExecAsync(conn, winner, "SELECT id FROM lists WHERE id = $1 FOR UPDATE", toB.Id);
+        await ExecAsync(conn, winner, "UPDATE cards SET list_id = $1 WHERE id = $2", toB.Id, card.Id);
+
+        // Client B's move into column C arrives now. It reads the card at the still-committed version
+        // V (A's UPDATE is uncommitted, and reads don't block under READ COMMITTED), then blocks on
+        // the row lock at its own UPDATE … WHERE xmin = V.
+        var loserTask = MoveAsync(client, token, board.Id, card.Id, toC.Id, 0);
+
+        // Long enough that B is parked on the row lock, not still in flight.
+        await Task.Delay(1500);
+        await winner.CommitAsync();
+
+        // B wakes, finds xmin has moved past V, and its zero-row UPDATE becomes a 409.
+        (await loserTask).StatusCode.ShouldBe(HttpStatusCode.Conflict);
+
+        // The card lives in exactly one place — A's column — neither duplicated nor stranded.
+        (await ListCardsAsync(client, token, board.Id, toB.Id)).Select(c => c.Id).ShouldBe(new[] { card.Id });
+        (await ListCardsAsync(client, token, board.Id, toC.Id)).ShouldBeEmpty();
+        (await ListCardsAsync(client, token, board.Id, source.Id)).ShouldBeEmpty();
+    }
+
+    private static async Task ExecAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string sql, params object[] args)
+    {
+        await using var cmd = new NpgsqlCommand(sql, conn, tx);
+        foreach (var arg in args) cmd.Parameters.AddWithValue(arg);
+        await cmd.ExecuteNonQueryAsync();
     }
 }
