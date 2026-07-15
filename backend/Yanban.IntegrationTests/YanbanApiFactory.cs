@@ -51,6 +51,11 @@ public class YanbanApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // clock, and a test that has to move 50 GiB to prove a limit is not a test anyone will run.
         Environment.SetEnvironmentVariable("Quota__MaxFileBytes", "1048576");    // 1 MiB
         Environment.SetEnvironmentVariable("Quota__MaxBoardBytes", "5242880");   // 5 MiB
+
+        // Testing is NOT Development, so CORS runs its allowlist branch — exactly the one worth
+        // gating. One origin on the list lets CorsTests prove a listed origin is reflected and an
+        // unlisted one is refused.
+        Environment.SetEnvironmentVariable("Cors__AllowedOrigins__0", "https://app.yanban.example");
     }
 
     async Task IAsyncLifetime.DisposeAsync()

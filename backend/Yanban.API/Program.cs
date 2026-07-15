@@ -151,6 +151,26 @@ builder.Services
         };
     });
 
+// CORS. The app is served same-origin through the proxy (ADR-11), so this is opt-in and NOT
+// load-bearing for the default topology. In Development any origin is reflected ("allow everything");
+// outside it, only the configured allowlist. AllowCredentials() is required for the cookie-based
+// refresh, and it forbids the "*" origin — so "allow everything" means *reflecting* the caller's
+// origin, not "*". (This does not enable cross-site cookie refresh on its own: the refresh cookie is
+// SameSite=Strict — see ADR-11 — so cross-origin unlocks bearer calls, not the refresh flow.)
+const string SpaCorsPolicy = "spa";
+var cors = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>() ?? new CorsOptions();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(SpaCorsPolicy, policy =>
+    {
+        policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+        if (builder.Environment.IsDevelopment())
+            policy.SetIsOriginAllowed(_ => true);
+        else
+            policy.WithOrigins(cors.AllowedOrigins);
+    });
+});
+
 builder.Services.AddAuthorization();
 
 // Resource-based authorization for boards (RBAC role × ABAC attributes). Scoped so
@@ -202,6 +222,12 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// Before the rate limiter (and auth): a CORS preflight is an unauthenticated OPTIONS, and it must
+// not be counted against the /auth/* budget or a browser could be locked out of logging in.
+// Before the rate limiter (and auth): a CORS preflight is an unauthenticated OPTIONS, and it must
+// not be counted against the /auth/* budget or a browser could be locked out of logging in.
+app.UseCors(SpaCorsPolicy);
 
 app.UseRateLimiter();
 
