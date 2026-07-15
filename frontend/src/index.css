@@ -562,6 +562,24 @@ kbd {
   padding: 1px;
 }
 
+/* A slim scrollbar in the app palette, everywhere one appears — the OS default is a chunky 15px
+   grey slab that a tall column made impossible to ignore. Firefox reads scrollbar-width/color;
+   Chromium/WebKit the ::-webkit pseudo, where a transparent border + padding-box clip insets the
+   thumb into a narrow pill that only darkens on hover. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--text-faint); background-clip: padding-box; }
+
 .card {
   background: var(--surface);
   border: 1px solid var(--border);

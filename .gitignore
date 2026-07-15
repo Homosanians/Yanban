@@ -33,3 +33,7 @@ backend/Yanban.API/wwwroot/
 
 # local agent settings
 .claude/
+
+# Playwright MCP scratch output
+.playwright-mcp/
+overflow-scrollbar.png

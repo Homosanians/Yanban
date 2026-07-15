@@ -192,10 +192,66 @@ export function BoardPage() {
   // would start a 0-pixel drag instead.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  const onDragStart = (e: DragStartEvent) => setDragging(String(e.active.id));
+  // Auto-scroll a tall column while dragging. dnd-kit's built-in auto-scroll only ramps up against
+  // the *viewport* edge, never a nested scroll container's own edge — so in an overflowing column
+  // every card below the fold was unreachable mid-drag (you could only drop among the ones already
+  // on screen). This tracks the pointer and scrolls whichever column's card list it is hovering
+  // when it nears that list's top or bottom, including when it strays just past the bottom onto the
+  // "Add a card" strip.
+  const pointer = useRef({ x: 0, y: 0 });
+  const autoScrollRAF = useRef<number | null>(null);
+
+  const runAutoScroll = useCallback(() => {
+    const { x, y } = pointer.current;
+    const column = document
+      .elementsFromPoint(x, y)
+      .map((el) => el.closest(".column"))
+      .find(Boolean);
+    const list = column?.querySelector<HTMLElement>(".cards");
+    if (list) {
+      const rect = list.getBoundingClientRect();
+      const edge = 72; // px hot band at each end
+      const speed = 15; // px per frame at full tilt
+      if (y < rect.top + edge) {
+        list.scrollTop -= speed * Math.min(1, (rect.top + edge - y) / edge);
+      } else if (y > rect.bottom - edge) {
+        list.scrollTop += speed * Math.min(1, (y - (rect.bottom - edge)) / edge);
+      }
+    }
+    autoScrollRAF.current = requestAnimationFrame(runAutoScroll);
+  }, []);
+
+  const trackPointer = useCallback((e: PointerEvent) => {
+    pointer.current = { x: e.clientX, y: e.clientY };
+  }, []);
+
+  const stopAutoScroll = useCallback(() => {
+    window.removeEventListener("pointermove", trackPointer);
+    if (autoScrollRAF.current !== null) cancelAnimationFrame(autoScrollRAF.current);
+    autoScrollRAF.current = null;
+  }, [trackPointer]);
+
+  // Belt and braces: never leave the rAF loop or the listener running if the component unmounts
+  // mid-drag.
+  useEffect(() => stopAutoScroll, [stopAutoScroll]);
+
+  const onDragStart = (e: DragStartEvent) => {
+    setDragging(String(e.active.id));
+    if (e.activatorEvent instanceof PointerEvent) {
+      pointer.current = { x: e.activatorEvent.clientX, y: e.activatorEvent.clientY };
+    }
+    window.addEventListener("pointermove", trackPointer);
+    autoScrollRAF.current = requestAnimationFrame(runAutoScroll);
+  };
+
+  const onDragCancel = () => {
+    setDragging(null);
+    stopAutoScroll();
+  };
 
   const onDragEnd = async (e: DragEndEvent) => {
     setDragging(null);
+    stopAutoScroll();
     const { active, over } = e;
     if (!over) return;
 
@@ -364,7 +420,7 @@ export function BoardPage() {
           measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
           onDragStart={onDragStart}
           onDragEnd={(e) => void onDragEnd(e)}
-          onDragCancel={() => setDragging(null)}
+          onDragCancel={onDragCancel}
         >
           <div className="columns">
             {lists.data?.map((list) => (
