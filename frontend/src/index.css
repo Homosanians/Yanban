@@ -560,6 +560,12 @@ kbd {
   overflow-y: auto;
   min-height: 8px;
   padding: 1px;
+  /* When a tall column overflows, the scrollbar should ride the column's own border, not press up
+     against the cards. Bleed the scroll area out over the column's right padding (margin-right cancels
+     it) so the bar sits at the edge, then hold the cards clear of the bar with matching right padding.
+     The 1px elsewhere is headroom for the card box-shadow. */
+  margin-right: -8px;
+  padding-right: 9px;
 }
 
 /* A slim scrollbar in the app palette, everywhere one appears — the OS default is a chunky 15px
