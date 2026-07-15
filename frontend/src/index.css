@@ -545,10 +545,10 @@ kbd {
 .column-head form { display: flex; gap: 4px; width: 100%; }
 .column-head form input { flex: 1; padding: 4px 8px; font-weight: 650; }
 
-/* Column tools stay out of the way until you actually go looking for them. */
-.column-head .actions { display: flex; gap: 2px; opacity: 0; transition: opacity var(--fast); }
-.column:hover .column-head .actions,
-.column:focus-within .column-head .actions { opacity: 1; }
+/* Column tools are always visible: muted grey at rest so they read as available without shouting,
+   and they still pick up their hover background/colour on pointer-over (via the base .icon-btn
+   rules). They only render for a writable board — a viewer never sees rename/delete. */
+.column-head .actions { display: flex; gap: 2px; }
 .column-head .actions .icon-btn { width: 26px; height: 26px; }
 
 /* flex:1 makes the whole remaining column a drop target, not just the strip the cards occupy. */
