@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: yanban
       POSTGRES_USER: yanban
-      POSTGRES_PASSWORD: yanban_dev_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yanban_dev_password}
     ports:
       - "5432:5432"
     volumes:
@@ -21,8 +21,8 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -50,18 +50,21 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=yanban;Username=yanban;Password=yanban_dev_password"
-      Jwt__Secret: "dev-only-change-me-super-secret-signing-key-min-32-bytes-long"
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=yanban;Username=yanban;Password=${POSTGRES_PASSWORD:-yanban_dev_password}"
+      Jwt__Secret: "${JWT_SECRET:-dev-only-change-me-super-secret-signing-key-min-32-bytes-long}"
       Jwt__Issuer: "yanban"
       Jwt__Audience: "yanban"
+      # Extra cross-origin caller (ADR-11). Only consulted outside Development; this stack runs
+      # Development, where any origin is reflected — so here it is documentation of the knob.
+      Cors__AllowedOrigins__0: "${CORS_ALLOWED_ORIGIN:-}"
       # Split horizon (ADR-10): the API talks to MinIO inside the Compose network, but the
       # presigned URLs it hands the browser must name a host the *browser* can reach. SigV4
       # signs the Host header, so this cannot be patched after signing — the API signs with a
       # second, presign-only client pointed at PublicEndpoint. That client never opens a socket.
       S3__Endpoint: "http://minio:9000"
       S3__PublicEndpoint: "http://localhost:9000"
-      S3__AccessKey: "minioadmin"
-      S3__SecretKey: "minioadmin"
+      S3__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
+      S3__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
       S3__Bucket: "yanban-attachments"
     ports:
       - "8081:8080"
@@ -84,19 +87,23 @@ services:
         condition: service_started
     environment:
       DOTNET_ENVIRONMENT: Development
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=yanban;Username=yanban;Password=yanban_dev_password"
-      Email__Host: "mailpit"
-      Email__Port: "1025"
-      Email__UseStartTls: "false"
-      Email__FromAddress: "no-reply@yanban.local"
-      Email__FromName: "Yanban"
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=yanban;Username=yanban;Password=${POSTGRES_PASSWORD:-yanban_dev_password}"
+      # SMTP relay. Defaults target the bundled Mailpit sink; point these at a real relay to send
+      # mail for real (Email__User/__Password/__UseStartTls). See .env.example.
+      Email__Host: "${EMAIL_HOST:-mailpit}"
+      Email__Port: "${EMAIL_PORT:-1025}"
+      Email__User: "${EMAIL_USER:-}"
+      Email__Password: "${EMAIL_PASSWORD:-}"
+      Email__UseStartTls: "${EMAIL_USE_STARTTLS:-false}"
+      Email__FromAddress: "${EMAIL_FROM_ADDRESS:-no-reply@yanban.local}"
+      Email__FromName: "${EMAIL_FROM_NAME:-Yanban}"
       # The origin the *browser* will follow the confirmation link to — the SPA, not the API.
-      Email__AppBaseUrl: "http://localhost:8080"
+      Email__AppBaseUrl: "${EMAIL_APP_BASE_URL:-http://localhost:8080}"
       # The storage janitor deletes orphaned objects, so the worker needs the internal MinIO client.
       # No PublicEndpoint: it never mints presigned URLs, so there is no browser-facing host to sign.
       S3__Endpoint: "http://minio:9000"
-      S3__AccessKey: "minioadmin"
-      S3__SecretKey: "minioadmin"
+      S3__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
+      S3__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
       S3__Bucket: "yanban-attachments"
 
   frontend:
