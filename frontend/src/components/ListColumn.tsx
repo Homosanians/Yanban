@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
-import { useDroppable } from "@dnd-kit/core";
+import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -39,6 +39,16 @@ export function ListColumn({
   // The column itself is a drop target, so a card can be dropped into a list that has no
   // cards to aim at.
   const { setNodeRef, isOver } = useDroppable({ id: list.id });
+
+  // Highlight the column as a drop target whenever a drag is hovering it — over its empty area OR
+  // over one of its cards. dnd-kit only reports the column as `over` for the empty strip, so a card
+  // dragged onto another column's *cards* got no "drop here" feedback at all (the column never lit
+  // up), which read as "you can't drop here" even though the drop worked. Watch the ambient drag via
+  // the context and light up when its target belongs to this list.
+  const { active, over } = useDndContext();
+  const overId = over?.id;
+  const isDropTarget =
+    active != null && (isOver || overId === list.id || cards.some((c) => c.id === overId));
 
   const cardsKey = contentKeys.cards(boardId, list.id);
 
@@ -108,7 +118,7 @@ export function ListColumn({
   };
 
   return (
-    <section className={isOver ? "column over" : "column"} ref={setNodeRef}>
+    <section className={isDropTarget ? "column over" : "column"} ref={setNodeRef}>
       <header className="column-head">
         {renaming ? (
           <form onSubmit={onRename}>
