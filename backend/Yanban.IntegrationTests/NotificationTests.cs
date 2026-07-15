@@ -171,6 +171,34 @@ public class NotificationTests
         second.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
+    /// <summary>
+    /// Resend runs authenticated <i>as the recipient</i>, so the actor check in
+    /// <c>NotificationOutbox.EnqueueAsync</c> — "never mail me about my own doing" — would eat the
+    /// confirmation unless <c>SignupConfirmation</c> is exempt. Symptom before the fix:
+    /// <c>POST /auth/resend-confirmation</c> returns 204, the token row is written, and no mail is
+    /// ever queued (the 204 lies). Registration queues one confirmation; a resend must queue a second.
+    /// </summary>
+    [Fact]
+    public async Task ResendingConfirmation_QueuesAnotherMail_EvenThoughYouAreTheRecipient()
+    {
+        var client = NewClient();
+        var (token, userId, email) = await RegisterAsync(client);
+
+        // Registration queued the first one.
+        (await OutboxFor(userId)).Count(m => m.Type == NotificationType.SignupConfirmation).ShouldBe(1);
+
+        var resend = await client.SendAsync(Authed(HttpMethod.Post, "/auth/resend-confirmation", token));
+        resend.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        // Without the SignupConfirmation exemption in the actor check this stays at 1: the mail is
+        // dropped because sender == recipient, and the user waits for a link that never comes.
+        var confirmations = (await OutboxFor(userId))
+            .Where(m => m.Type == NotificationType.SignupConfirmation)
+            .ToList();
+        confirmations.Count.ShouldBe(2);
+        confirmations.ShouldAllBe(m => m.RecipientEmail == email);
+    }
+
     // --- who gets mailed, and who does not ----------------------------------
 
     [Fact]

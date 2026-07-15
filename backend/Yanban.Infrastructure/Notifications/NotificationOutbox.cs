@@ -35,9 +35,13 @@ public class NotificationOutbox : INotificationOutbox
         CancellationToken ct)
     {
         // You are never mailed about your own doing. Assigning a card to yourself, moving your own
-        // card, commenting on your own card — all silent. (Signup has no actor, so this cannot fire
-        // for it: `UserId` is null before the account exists.)
-        if (_currentUser.UserId == recipientUserId)
+        // card, commenting on your own card — all silent. This is about *activity* mail.
+        //
+        // SignupConfirmation is exempt: it is transactional and addressed to the account owner by
+        // definition. Registration has no actor (`UserId` is null before the account exists), but a
+        // *resend* runs authenticated as you — so without this exemption the guard would eat the
+        // confirmation, and POST /auth/resend-confirmation would return 204 while sending no mail.
+        if (type != NotificationType.SignupConfirmation && _currentUser.UserId == recipientUserId)
             return;
 
         if (!await _preferences.IsEnabledAsync(recipientUserId, boardId, type, ct))
