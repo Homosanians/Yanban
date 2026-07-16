@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ClipboardEvent } from "react";
-import { AlertTriangle, Download, Paperclip, SendHorizontal, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Download, Paperclip, SendHorizontal, Trash2, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   assignCard,
@@ -399,8 +399,21 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
                 </div>
                 {writable && (
                   <div className="row">
-                    <button type="submit" disabled={!dirty || !title.trim() || save.isPending}>
-                      {save.isPending ? "Saving…" : "Save changes"}
+                    <button
+                      type="submit"
+                      className={dirty ? "" : "ghost saved"}
+                      disabled={!dirty || !title.trim() || save.isPending}
+                    >
+                      {save.isPending ? (
+                        "Saving…"
+                      ) : dirty ? (
+                        "Save changes"
+                      ) : (
+                        <>
+                          <Check size={15} />
+                          All changes saved
+                        </>
+                      )}
                     </button>
                   </div>
                 )}

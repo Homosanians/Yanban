@@ -1225,3 +1225,6 @@ kbd {
   background: var(--surface-3);
 }
 .attachment-thumb.icon { display: grid; place-items: center; color: var(--text-faint); }
+
+/* The autosave "all changes saved" resting state: a quiet status, not a live button. */
+button.saved { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); }
