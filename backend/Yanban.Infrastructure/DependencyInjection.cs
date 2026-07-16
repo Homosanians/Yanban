@@ -52,6 +52,9 @@ public static class DependencyInjection
         services.AddScoped<IActivityRecorder, ActivityRecorder>();
         // The same table read as an outbox, by the realtime tailer.
         services.AddScoped<IActivityOutbox, ActivityOutbox>();
+        // Wakes the tailer on a Postgres LISTEN/NOTIFY doorbell instead of a timer. Singleton
+        // because it owns one long-lived listening connection for the life of the process.
+        services.AddSingleton<IActivityListener, PostgresActivityListener>();
 
         // Email notifications. Scoped for the same reason the recorder is: the outbox row has to
         // land in the mutation's own unit of work, or we would be promising to send mail about

@@ -17,6 +17,12 @@ namespace Yanban.API.Realtime;
 /// This is its reader. Nothing publishes from the request path, so an event can never be
 /// announced for a change that then rolled back.</para>
 ///
+/// <para>The reader is woken by a Postgres LISTEN/NOTIFY doorbell (<see cref="IActivityListener"/>),
+/// not a timer, so an event is dispatched within milliseconds of its commit. The notification is
+/// only a wake signal; the rows are still read from the log through the cursor, so out-of-order
+/// commits and the grace window are handled exactly as before. A backstop interval and a
+/// catch-up read on reconnect cover the one gap: NOTIFY is not durable.</para>
+///
 /// <para>There is no Redis backplane. Without one, <c>Clients.Group(...)</c> reaches only
 /// the connections held by this instance, which is what is wanted: every instance runs this
 /// tailer over the same shared log, and each client is connected to exactly one instance, so
@@ -27,6 +33,7 @@ public class ActivityDispatcher : BackgroundService
     private readonly IServiceScopeFactory _scopes;
     private readonly IHubContext<BoardHub, IBoardClient> _hub;
     private readonly BoardSubscriptionRegistry _registry;
+    private readonly IActivityListener _listener;
     private readonly RealtimeOptions _options;
     private readonly ILogger<ActivityDispatcher> _logger;
 
@@ -36,24 +43,27 @@ public class ActivityDispatcher : BackgroundService
         IServiceScopeFactory scopes,
         IHubContext<BoardHub, IBoardClient> hub,
         BoardSubscriptionRegistry registry,
+        IActivityListener listener,
         IOptions<RealtimeOptions> options,
         ILogger<ActivityDispatcher> logger)
     {
         _scopes = scopes;
         _hub = hub;
         _registry = registry;
+        _listener = listener;
         _options = options.Value;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(_options.PollIntervalMs));
-
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                // Block until the doorbell fires, the backstop elapses, or the listener
+                // reconnects, then read whatever is new from the cursor.
+                await _listener.WaitForActivityAsync(stoppingToken);
                 await TickAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -64,8 +74,8 @@ public class ActivityDispatcher : BackgroundService
             {
                 // An exception escaping ExecuteAsync stops a BackgroundService for good and
                 // says nothing: one transient database blip would silently take realtime down
-                // for the life of the process. Log it and let the next tick retry.
-                _logger.LogError(ex, "Outbox poll failed; retrying on the next tick.");
+                // for the life of the process. Log it and let the next wake retry.
+                _logger.LogError(ex, "Realtime dispatch failed; retrying on the next wake.");
             }
         }
     }

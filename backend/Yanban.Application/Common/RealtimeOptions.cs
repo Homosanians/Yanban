@@ -4,9 +4,13 @@ public class RealtimeOptions
 {
     public const string SectionName = "Realtime";
 
-    /// <summary>How often the outbox tailer polls for new activity. This is the upper
-    /// bound on realtime latency.</summary>
-    public int PollIntervalMs { get; set; } = 500;
+    /// <summary>
+    /// Safety-net interval for the outbox tailer. A Postgres LISTEN/NOTIFY doorbell wakes the
+    /// tailer the moment activity commits, so this is not the primary path. It only bounds how
+    /// long a notification that was missed (for example while the listener was reconnecting)
+    /// can go unseen, since NOTIFY is not durable and the log is the source of truth.
+    /// </summary>
+    public int BackstopPollMs { get; set; } = 10000;
 
     /// <summary>
     /// How long a row stays inside the tailer's re-scan window. The cursor is never
