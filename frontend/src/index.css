@@ -1226,5 +1226,9 @@ kbd {
 }
 .attachment-thumb.icon { display: grid; place-items: center; color: var(--text-faint); }
 
-/* The autosave "all changes saved" resting state: a quiet status, not a live button. */
-button.saved { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); }
+/* Autosave state icon in the card header: a spinner while saving, and a small pop as the icon
+   swaps between save, saving, and saved. */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes icon-pop { from { transform: scale(0.7); opacity: 0.4; } to { transform: scale(1); opacity: 1; } }
+.spin { animation: spin 0.8s linear infinite; }
+.pop { animation: icon-pop 160ms ease; }

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ClipboardEvent } from "react";
-import { AlertTriangle, Check, Download, Paperclip, SendHorizontal, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Download, Loader2, Paperclip, Save, SendHorizontal, Trash2, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   assignCard,
@@ -310,6 +310,24 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
           <div className="row">
             {writable && (
               <button
+                className="icon-btn"
+                type="button"
+                aria-label={save.isPending ? "Saving" : dirty ? "Save changes" : "All changes saved"}
+                title={save.isPending ? "Saving…" : dirty ? "Save changes" : "All changes saved"}
+                disabled={!dirty || !title.trim() || save.isPending}
+                onClick={doSave}
+              >
+                {save.isPending ? (
+                  <Loader2 size={16} className="spin" />
+                ) : dirty ? (
+                  <Save size={16} className="pop" />
+                ) : (
+                  <Check size={16} className="pop" />
+                )}
+              </button>
+            )}
+            {writable && (
+              <button
                 className="icon-btn danger"
                 aria-label="Delete card"
                 title="Delete card"
@@ -397,26 +415,6 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
                     />
                   </label>
                 </div>
-                {writable && (
-                  <div className="row">
-                    <button
-                      type="submit"
-                      className={dirty ? "" : "ghost saved"}
-                      disabled={!dirty || !title.trim() || save.isPending}
-                    >
-                      {save.isPending ? (
-                        "Saving…"
-                      ) : dirty ? (
-                        "Save changes"
-                      ) : (
-                        <>
-                          <Check size={15} />
-                          All changes saved
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
                 {save.isError && !conflict && <p className="error">{(save.error as Error).message}</p>}
               </form>
 
