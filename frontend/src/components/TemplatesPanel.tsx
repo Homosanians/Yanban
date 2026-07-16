@@ -10,6 +10,7 @@ import {
   listLists,
   listTemplates,
 } from "../api/board-content";
+import { Dropdown } from "./Dropdown";
 
 interface Props {
   boardId: string;
@@ -100,11 +101,12 @@ export function TemplatesPanel({ boardId, writable, onClose }: Props) {
         {writable && lists.data && lists.data.length > 0 && (
           <label>
             Add cards to
-            <select value={listId} onChange={(e) => setTargetList(e.target.value)}>
-              {lists.data.map((l) => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
+            <Dropdown
+              value={listId}
+              ariaLabel="Add cards to"
+              options={lists.data.map((l) => ({ value: l.id, label: l.name }))}
+              onChange={setTargetList}
+            />
           </label>
         )}
 

@@ -1087,3 +1087,141 @@ kbd {
 /* Nearly full is a warning, not decoration — turn the bar red as it approaches the cap. */
 .meter.full::-webkit-progress-value { background: var(--danger); }
 .meter.full::-moz-progress-bar { background: var(--danger); }
+
+/* --- dropdown (custom select) -------------------------------------------
+   Replaces the native selects. Trigger borrows the input recipe so it reads as a field; the panel
+   is a small listbox anchored under it. */
+
+.dropdown, .datepicker { position: relative; }
+
+.dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color var(--fast), box-shadow var(--fast);
+}
+.dropdown-trigger:hover:not(:disabled) { border-color: var(--border-strong); }
+.dropdown-trigger:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
+.dropdown-trigger:disabled { opacity: 0.45; cursor: default; }
+.dropdown-value { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dropdown-value.placeholder { color: var(--text-faint); }
+.dropdown-caret { color: var(--text-faint); flex: 0 0 auto; }
+
+.dropdown-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-lg);
+}
+.dropdown-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  min-width: 0;
+}
+.dropdown-option.active { background: var(--surface-3); }
+.dropdown-option[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+.dropdown.compact .dropdown-trigger { padding: 5px 8px; font-size: 12px; }
+.member .controls .dropdown { min-width: 104px; }
+.panel-filters .dropdown-trigger { padding: 6px 8px; font-size: 12px; }
+
+/* --- date picker --------------------------------------------------------- */
+
+.calendar {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  width: 264px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+}
+.calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.calendar-month { font-size: 13px; font-weight: 600; color: var(--text); }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.calendar-weekday { font-size: 11px; color: var(--text-faint); text-align: center; padding: 4px 0; }
+.calendar-day {
+  height: 30px;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background var(--fast);
+}
+.calendar-day:hover:not(:disabled) { background: var(--surface-3); }
+.calendar-day.today { color: var(--accent); font-weight: 600; }
+.calendar-day.selected { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.calendar-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
+
+/* --- comment composer ---------------------------------------------------
+   One field with the send control tucked inside it, so the input reads as a single object. */
+
+.comment-composer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  transition: border-color var(--fast), box-shadow var(--fast);
+}
+.comment-composer:focus-within { border-color: var(--accent); box-shadow: var(--ring); }
+.comment-composer input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 8px 0;
+}
+.comment-composer input:focus { outline: none; box-shadow: none; }
+.comment-composer .icon-btn { flex: 0 0 auto; }
+.comment-composer .icon-btn:not(:disabled) { color: var(--accent); }
+
+/* --- attachment thumbnail ----------------------------------------------- */
+
+.attachment-thumb {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  background: var(--surface-3);
+}
+.attachment-thumb.icon { display: grid; place-items: center; color: var(--text-faint); }

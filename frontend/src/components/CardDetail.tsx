@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useState } from "react";
-import type { FormEvent } from "react";
-import { AlertTriangle, Download, Paperclip, Trash2, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { ClipboardEvent } from "react";
+import { AlertTriangle, Download, Paperclip, SendHorizontal, Trash2, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   assignCard,
@@ -22,8 +22,11 @@ import { formatBytes } from "../lib/bytes";
 import { isOverdue } from "../lib/due";
 import { useToast } from "../toast/useToast";
 import type { BoardMember } from "../types";
+import { AttachmentThumb } from "./AttachmentThumb";
 import { Avatar } from "./Avatar";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { DatePicker } from "./DatePicker";
+import { Dropdown } from "./Dropdown";
 
 interface Props {
   boardId: string;
@@ -33,6 +36,8 @@ interface Props {
   selfId: string;
   onClose: () => void;
 }
+
+type CardFields = { title: string; description: string; dueDate: string };
 
 export function CardDetail({ boardId, cardId, members, writable, selfId, onClose }: Props) {
   const queryClient = useQueryClient();
@@ -58,17 +63,50 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
   const [body, setBody] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Load the server's copy into the form. Runs again after a conflict refetch, which is how
-  // the user gets to see what the other person actually wrote.
+  // Autosave bookkeeping.
+  // - savedRef: the values last persisted, to tell dirty from clean.
+  // - versionRef: the If-Match token. Seeded from the card, then advanced from each write's
+  //   response so back-to-back autosaves do not conflict with each other.
+  // - latestRef: the current field values, so callbacks and timers read fresh values, not a
+  //   closure snapshot.
+  // - inFlight / resaveWanted: run one save at a time and, if edits arrived mid-flight, save once
+  //   more when it finishes.
+  const savedRef = useRef<CardFields | null>(null);
+  const versionRef = useRef(0);
+  const latestRef = useRef<CardFields>({ title: "", description: "", dueDate: "" });
+  const seededFor = useRef<string | null>(null);
+  const forceReseed = useRef(false);
+  const inFlight = useRef(false);
+  const resaveWanted = useRef(false);
+
+  latestRef.current = { title: title.trim(), description, dueDate };
+
+  const dirty =
+    !!savedRef.current &&
+    (latestRef.current.title !== savedRef.current.title ||
+      latestRef.current.description !== savedRef.current.description ||
+      latestRef.current.dueDate !== savedRef.current.dueDate);
+
+  // Seed the form from the server on open, and again only when forced (after a conflict, so the
+  // user is shown the current version). We do not reseed on every refetch, which would clobber
+  // edits in progress.
   //
-  // useLayoutEffect, not useEffect: a plain effect runs after paint, so the drawer would render
-  // one frame with an empty title box before filling it in.
+  // useLayoutEffect, not useEffect: a plain effect runs after paint, so the drawer would flash one
+  // empty frame before filling in.
   useLayoutEffect(() => {
     if (!card.data) return;
-    setTitle(card.data.title);
-    setDescription(card.data.description ?? "");
-    setDueDate(card.data.dueDate ? card.data.dueDate.slice(0, 10) : "");
-  }, [card.data]);
+    if (seededFor.current === cardId && !forceReseed.current) return;
+    const t = card.data.title;
+    const d = card.data.description ?? "";
+    const due = card.data.dueDate ? card.data.dueDate.slice(0, 10) : "";
+    setTitle(t);
+    setDescription(d);
+    setDueDate(due);
+    savedRef.current = { title: t.trim(), description: d, dueDate: due };
+    versionRef.current = card.data.version;
+    seededFor.current = cardId;
+    forceReseed.current = false;
+  }, [card.data, cardId]);
 
   // Escape closes the drawer, but not while a confirm dialog is up, which owns Escape itself.
   useEffect(() => {
@@ -88,31 +126,89 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
   };
 
   const save = useMutation({
-    mutationFn: () =>
-      updateCard(boardId, cardId, card.data!.version, {
-        title: title.trim(),
-        description: description.trim() ? description : null,
-        // The API takes a DateTimeOffset; a bare date input has no time, so pin it to UTC midnight.
-        dueDate: dueDate ? new Date(`${dueDate}T00:00:00Z`).toISOString() : null,
+    mutationFn: (vals: CardFields) =>
+      updateCard(boardId, cardId, versionRef.current, {
+        title: vals.title,
+        description: vals.description.trim() ? vals.description : null,
+        // The API takes a DateTimeOffset; a bare date has no time, so pin it to UTC midnight.
+        dueDate: vals.dueDate ? new Date(`${vals.dueDate}T00:00:00Z`).toISOString() : null,
       }),
-    onSuccess: () => {
+    onSuccess: (updated, vals) => {
+      versionRef.current = updated.version;
+      savedRef.current = vals;
       setConflict(null);
       invalidateBoard();
     },
     onError: (err) => {
-      // 412: the card moved under us. Never retry without If-Match, since silently overwriting
-      // someone else's edit is exactly what the version check exists to prevent. Refetch and
-      // make the user look at the current text before they decide.
+      // 412: the card moved under us. Never retry without a fresh If-Match, since overwriting
+      // someone else's edit is what the version check exists to prevent. Show the current version.
       if (err instanceof ApiError && err.status === 412) {
-        setConflict("Someone else changed this card while you were editing. Your changes were not saved — the current version is shown below.");
+        setConflict("Someone else changed this card while you were editing. Your changes were not saved; the current version is shown below.");
+        resaveWanted.current = false;
+        forceReseed.current = true;
         void card.refetch();
+      }
+      // Other failures (409/428/network) surface through the inline error and keep the user's text.
+    },
+    onSettled: () => {
+      inFlight.current = false;
+      if (resaveWanted.current) {
+        resaveWanted.current = false;
+        doSaveRef.current();
       }
     },
   });
 
+  const doSave = () => {
+    const v = latestRef.current;
+    const s = savedRef.current;
+    if (!card.data || !writable || !v.title || !s) return;
+    if (v.title === s.title && v.description === s.description && v.dueDate === s.dueDate) return;
+    if (inFlight.current) {
+      resaveWanted.current = true;
+      return;
+    }
+    inFlight.current = true;
+    save.mutate(v);
+  };
+
+  // Callbacks and listeners that outlive a render (the settle handler, the tab-hide listener) call
+  // through this so they always run the current doSave, not a stale closure from an earlier render.
+  const doSaveRef = useRef(doSave);
+  doSaveRef.current = doSave;
+
+  // Autosave text edits a beat after typing stops. Typing resets the timer, so a save fires only
+  // once the field is quiet, not on every keystroke.
+  useEffect(() => {
+    if (!dirty) return;
+    const timer = setTimeout(doSave, 1500);
+    return () => clearTimeout(timer);
+    // doSave reads refs, so it does not need to be a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, description, dirty]);
+
+  // Flush on tab hide so an edit is not stranded when the user switches away or closes the tab.
+  // Best-effort: a save started as the tab closes may not finish.
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden") doSaveRef.current();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onHide);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const assign = useMutation({
     mutationFn: (assigneeId: string | null) => assignCard(boardId, cardId, assigneeId),
-    onSuccess: invalidateBoard,
+    onSuccess: (updated) => {
+      // Assignment bumps the row version too; adopt it so the next card save is not a false conflict.
+      if (updated?.version) versionRef.current = updated.version;
+      invalidateBoard();
+    },
   });
 
   const remove = useMutation({
@@ -142,15 +238,16 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
     queryFn: () => getBoardUsage(boardId),
   });
 
+  const invalidateAttachments = () => {
+    void queryClient.invalidateQueries({ queryKey: contentKeys.attachments(boardId, cardId) });
+    // Attachment count and stored bytes changed, so refresh the storage bar too.
+    void queryClient.invalidateQueries({ queryKey: boardSettingsKeys.usage(boardId) });
+  };
+
   const upload = useMutation({
     mutationFn: (file: File) => uploadAttachment(boardId, cardId, file),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: contentKeys.attachments(boardId, cardId) });
-      // Upload changed usage, so refetch the storage bar.
-      void queryClient.invalidateQueries({ queryKey: boardSettingsKeys.usage(boardId) });
-    },
-    // The server's message already names the numbers ("This board has 1.2 GB left of its 50 GB"),
-    // so there is nothing to translate: just show it.
+    onSuccess: invalidateAttachments,
+    // The server's message already names the numbers, so there is nothing to translate: show it.
     onError: (err) => show(err instanceof Error ? err.message : "The upload failed."),
   });
 
@@ -170,26 +267,44 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
 
   const removeAttachment = useMutation({
     mutationFn: (attachmentId: string) => deleteAttachment(boardId, cardId, attachmentId),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: contentKeys.attachments(boardId, cardId) }),
+    onSuccess: invalidateAttachments,
   });
 
   const download = async (attachmentId: string) => {
-    // The API mints a short-lived presigned URL and the browser fetches the bytes straight
-    // from storage; they never pass through the API.
+    // The API mints a short-lived presigned URL and the browser fetches the bytes straight from
+    // storage; they never pass through the API.
     const { downloadUrl } = await getDownloadUrl(boardId, cardId, attachmentId);
     window.open(downloadUrl, "_blank", "noopener");
   };
 
-  const onSave = (e: FormEvent) => {
+  // Ctrl+V anywhere in the drawer uploads pasted files. Only intercept when the clipboard actually
+  // carries files, so pasting text into a field still works normally.
+  const onPaste = (e: ClipboardEvent) => {
+    if (!writable) return;
+    const files = Array.from(e.clipboardData.files ?? []);
+    if (files.length === 0) return;
     e.preventDefault();
-    save.mutate();
+    files.forEach(pick);
   };
 
-  const assignee = members.find((m) => m.userId === card.data?.assigneeId);
+  const assigneeOptions = [
+    { value: "", label: "Unassigned" },
+    ...members.map((m) => ({
+      value: m.userId,
+      label: m.displayName,
+      icon: <Avatar email={m.email} name={m.displayName} size="sm" />,
+    })),
+  ];
 
   return (
     <div className="drawer-backdrop" onClick={onClose}>
-      <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Card">
+      <aside
+        className="drawer"
+        onClick={(e) => e.stopPropagation()}
+        onPaste={onPaste}
+        role="dialog"
+        aria-label="Card"
+      >
         <header className="drawer-head">
           <h2>Card</h2>
           <div className="row">
@@ -217,11 +332,18 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
             <>
               {conflict && <p className="conflict">{conflict}</p>}
 
-              <form onSubmit={onSave} className="stack">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  doSave();
+                }}
+                className="stack"
+              >
                 <input
                   className="card-title-input"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  onBlur={doSave}
                   disabled={!writable}
                   maxLength={500}
                   aria-label="Card title"
@@ -231,6 +353,7 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
+                    onBlur={doSave}
                     disabled={!writable}
                     rows={5}
                     maxLength={10000}
@@ -241,8 +364,8 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
                   <label className="grow">
                     <span className="label-row">
                       Due date
-                      {/* Read from the saved card, not from the input beside it: the flag reports
-                          what the board is showing everyone else, not a date you are still typing. */}
+                      {/* Read from the saved card, not the picker beside it: the flag reports what
+                          everyone else sees, not a date still being chosen. */}
                       {isOverdue(card.data.dueDate) && (
                         <span className="flag">
                           <AlertTriangle size={10} />
@@ -250,34 +373,35 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
                         </span>
                       )}
                     </span>
-                    <input
-                      type="date"
+                    <DatePicker
                       value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
                       disabled={!writable}
+                      ariaLabel="Due date"
+                      onChange={(v) => {
+                        setDueDate(v);
+                        // A pick is a deliberate discrete change, so save it now rather than on the
+                        // text debounce. Update latestRef synchronously so doSave sees the new date.
+                        latestRef.current = { ...latestRef.current, dueDate: v };
+                        doSave();
+                      }}
                     />
                   </label>
                   <label className="grow">
                     Assignee
-                    <div className="row">
-                      {assignee && <Avatar email={assignee.email} name={assignee.displayName} />}
-                      <select
-                        className="grow"
-                        value={card.data.assigneeId ?? ""}
-                        disabled={!writable}
-                        onChange={(e) => assign.mutate(e.target.value || null)}
-                      >
-                        <option value="">Unassigned</option>
-                        {members.map((m) => (
-                          <option key={m.userId} value={m.userId}>{m.displayName}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <Dropdown
+                      value={card.data.assigneeId ?? ""}
+                      options={assigneeOptions}
+                      disabled={!writable}
+                      ariaLabel="Assignee"
+                      onChange={(v) => assign.mutate(v || null)}
+                    />
                   </label>
                 </div>
                 {writable && (
                   <div className="row">
-                    <button type="submit" disabled={save.isPending || !title.trim()}>Save changes</button>
+                    <button type="submit" disabled={!dirty || !title.trim() || save.isPending}>
+                      {save.isPending ? "Saving…" : "Save changes"}
+                    </button>
                   </div>
                 )}
                 {save.isError && !conflict && <p className="error">{(save.error as Error).message}</p>}
@@ -303,11 +427,12 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
                     />
                   </label>
                 )}
+                {writable && <p className="faint">Tip: paste a file or image with Ctrl+V.</p>}
                 {/* Upload errors go to a toast (pick / upload.onError), so no inline copy here. */}
 
                 {attachments.data?.map((a) => (
                   <div key={a.id} className="attachment">
-                    <Paperclip size={14} />
+                    <AttachmentThumb boardId={boardId} cardId={cardId} attachment={a} />
                     <button className="link grow truncate" onClick={() => void download(a.id)}>
                       {a.fileName}
                     </button>
@@ -368,20 +493,28 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
 
                 {writable && (
                   <form
-                    className="row"
+                    className="comment-composer"
                     onSubmit={(e) => {
                       e.preventDefault();
                       if (body.trim()) addComment.mutate(body.trim());
                     }}
                   >
                     <input
-                      className="grow"
                       value={body}
                       onChange={(e) => setBody(e.target.value)}
                       placeholder="Write a comment"
                       maxLength={5000}
+                      aria-label="Write a comment"
                     />
-                    <button type="submit" disabled={!body.trim() || addComment.isPending}>Send</button>
+                    <button
+                      className="icon-btn"
+                      type="submit"
+                      aria-label="Send comment"
+                      title="Send"
+                      disabled={!body.trim() || addComment.isPending}
+                    >
+                      <SendHorizontal size={16} />
+                    </button>
                   </form>
                 )}
               </section>

@@ -7,6 +7,9 @@ import { BOARD_ROLES, canAdmin } from "../types";
 import type { BoardMember, BoardRole } from "../types";
 import { Avatar } from "./Avatar";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { Dropdown } from "./Dropdown";
+
+const roleOptions = BOARD_ROLES.map((r) => ({ value: r, label: r }));
 
 interface Props {
   boardId: string;
@@ -71,15 +74,13 @@ export function MembersPanel({ boardId, role, onClose }: Props) {
               placeholder="Invite by email"
             />
             <div className="row">
-              <select
+              <Dropdown
                 className="grow"
                 value={newRole}
-                onChange={(e) => setNewRole(e.target.value as BoardRole)}
-              >
-                {BOARD_ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
+                options={roleOptions}
+                ariaLabel="Role for the invite"
+                onChange={(v) => setNewRole(v as BoardRole)}
+              />
               <button type="submit" disabled={add.isPending || !email.trim()}>Invite</button>
             </div>
             {add.isError && <p className="error">{(add.error as Error).message}</p>}
@@ -100,15 +101,13 @@ export function MembersPanel({ boardId, role, onClose }: Props) {
 
               {admin ? (
                 <div className="controls">
-                  <select
+                  <Dropdown
+                    className="compact"
                     value={m.role}
-                    aria-label={`Role for ${m.displayName}`}
-                    onChange={(e) => change.mutate({ userId: m.userId, role: e.target.value as BoardRole })}
-                  >
-                    {BOARD_ROLES.map((r) => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
+                    options={roleOptions}
+                    ariaLabel={`Role for ${m.displayName}`}
+                    onChange={(v) => change.mutate({ userId: m.userId, role: v as BoardRole })}
+                  />
                   <button
                     className="icon-btn danger"
                     aria-label={`Remove ${m.displayName}`}

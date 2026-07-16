@@ -15,6 +15,7 @@ import {
 import type { BoardList, BoardMember, Card } from "../types";
 import { CardTile } from "./CardTile";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { Dropdown } from "./Dropdown";
 
 interface Props {
   boardId: string;
@@ -188,19 +189,16 @@ export function ListColumn({
           {templates.data && templates.data.length > 0 && (
             // Stays on the placeholder: this is an action, not a setting. Picking a template
             // creates the card there and then, and the control resets for the next one.
-            <select
+            <Dropdown
               value=""
-              aria-label="Add a card from a template"
+              placeholder="From a template…"
+              ariaLabel="Add a card from a template"
               disabled={fromTemplate.isPending}
-              onChange={(e) => {
-                if (e.target.value) fromTemplate.mutate(e.target.value);
+              options={templates.data.map((t) => ({ value: t.id, label: t.name }))}
+              onChange={(v) => {
+                if (v) fromTemplate.mutate(v);
               }}
-            >
-              <option value="">From a template…</option>
-              {templates.data.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
+            />
           )}
 
           <div className="row">

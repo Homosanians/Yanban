@@ -4,6 +4,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { contentKeys, listActivity } from "../api/board-content";
 import type { ActivityFilters, BoardMember } from "../types";
 import { Avatar } from "./Avatar";
+import { Dropdown } from "./Dropdown";
 
 interface Props {
   boardId: string;
@@ -79,22 +80,24 @@ export function ActivityFeed({ boardId, members, onClose }: Props) {
         </div>
 
         <div className="row">
-          <select value={actorId} onChange={(e) => setActorId(e.target.value)} aria-label="Filter by member">
-            <option value="">Anyone</option>
-            {members.map((m) => (
-              <option key={m.userId} value={m.userId}>{m.displayName}</option>
-            ))}
-          </select>
-
-          <select value={action} onChange={(e) => setAction(e.target.value)} aria-label="Filter by action">
-            <option value="">Any action</option>
-            {ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-
-          <select value={entityType} onChange={(e) => setEntityType(e.target.value)} aria-label="Filter by type">
-            <option value="">Anything</option>
-            {ENTITY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
+          <Dropdown
+            value={actorId}
+            ariaLabel="Filter by member"
+            onChange={setActorId}
+            options={[{ value: "", label: "Anyone" }, ...members.map((m) => ({ value: m.userId, label: m.displayName }))]}
+          />
+          <Dropdown
+            value={action}
+            ariaLabel="Filter by action"
+            onChange={setAction}
+            options={[{ value: "", label: "Any action" }, ...ACTIONS.map((a) => ({ value: a, label: a }))]}
+          />
+          <Dropdown
+            value={entityType}
+            ariaLabel="Filter by type"
+            onChange={setEntityType}
+            options={[{ value: "", label: "Anything" }, ...ENTITY_TYPES.map((t) => ({ value: t, label: t }))]}
+          />
         </div>
 
         {filtered && (
