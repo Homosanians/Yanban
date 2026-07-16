@@ -10,13 +10,13 @@ namespace Yanban.API.Realtime;
 /// <summary>
 /// The realtime face of a board. A client connects once and subscribes to the boards it
 /// is looking at; the outbox tailer (<see cref="ActivityDispatcher"/>) does all the
-/// sending — the hub only decides who is allowed to listen.
+/// sending, and the hub only decides who is allowed to listen.
 ///
-/// <para>Subscribing runs the <b>same</b> resource-based authorization as the REST API
-/// (<see cref="BoardPermissionRequirement"/> → BoardAccess), so the live feed cannot
+/// <para>Subscribing runs the same resource-based authorization as the REST API
+/// (<see cref="BoardPermissionRequirement"/>, then BoardAccess), so the live feed cannot
 /// become a second, weaker way in. It works over a WebSocket because
 /// <c>BoardAuthorizationHandler</c> takes the caller from the authorization context's
-/// principal — there is no per-invocation HttpContext to read here.</para>
+/// principal; there is no per-invocation HttpContext to read here.</para>
 /// </summary>
 [Authorize]
 public class BoardHub : Hub<IBoardClient>
@@ -58,7 +58,7 @@ public class BoardHub : Hub<IBoardClient>
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         // SignalR drops the connection from its groups on its own, but knows nothing about
-        // our registry — left alone it would leak an entry per dropped connection.
+        // our registry; left alone it would leak an entry per dropped connection.
         _registry.RemoveConnection(Context.ConnectionId);
         return base.OnDisconnectedAsync(exception);
     }

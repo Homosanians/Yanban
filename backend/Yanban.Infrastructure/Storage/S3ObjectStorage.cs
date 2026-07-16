@@ -10,13 +10,13 @@ namespace Yanban.Infrastructure.Storage;
 
 /// <summary>
 /// <see cref="IObjectStorage"/> over the AWS SDK's S3 client, pointed at any
-/// S3-compatible endpoint (MinIO in dev) via <c>ServiceURL</c> + path-style addressing.
+/// S3-compatible endpoint (MinIO in dev) via <c>ServiceURL</c> plus path-style addressing.
 /// Presigned URLs are computed locally by the SDK, so no network call is made to issue one.
 ///
-/// <para>Two clients, because the API and the browser reach storage at different hosts
-/// (ADR-10). Everything that actually calls storage goes through <c>_s3</c>; the URLs handed
-/// to the browser are signed by <c>_presign</c>, which names a host it need not be able to
-/// reach itself — signing is local computation. When no public endpoint is configured the two
+/// <para>Two clients, because the API and the browser reach storage at different hosts.
+/// Everything that actually calls storage goes through <c>_s3</c>; the URLs handed to the
+/// browser are signed by <c>_presign</c>, which names a host it need not be able to reach
+/// itself, since signing is local computation. When no public endpoint is configured the two
 /// are the same instance.</para>
 /// </summary>
 public class S3ObjectStorage : IObjectStorage
@@ -37,7 +37,7 @@ public class S3ObjectStorage : IObjectStorage
         _s3 = s3;
         _presign = presign;
         _bucket = options.Value.Bucket;
-        // AlignScheme rewrites URLs minted by the *presign* client, so the scheme it aligns to
+        // AlignScheme rewrites URLs minted by the presign client, so the scheme it aligns to
         // must come from that client's endpoint. Keying it off the internal endpoint instead
         // works by accident whenever both are http (dev) and silently mangles the URL the moment
         // a deployment terminates TLS in front of storage but talks plaintext behind it.

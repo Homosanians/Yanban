@@ -16,9 +16,9 @@ public class ActivityOutbox : IActivityOutbox
 
     public async Task<IReadOnlyList<ActivityDto>> ReadSinceAsync(long afterSequence, int limit, CancellationToken ct)
     {
-        // Same join-and-project shape as the board feed (ActivityService), but oldest-first
-        // and across every board — one poll serves all of them. No tracking: these rows are
-        // read once and pushed out, never mutated.
+        // Same join-and-project shape as the board feed, but oldest-first and across every
+        // board, so one poll serves all of them. No tracking: these rows are read once and
+        // pushed out, never mutated.
         var rows = await _db.ActivityLogs
             .AsNoTracking()
             .Where(a => a.Sequence > afterSequence)

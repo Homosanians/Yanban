@@ -9,7 +9,7 @@ namespace Yanban.API.Controllers;
 
 /// <summary>
 /// Comments on a card. All mutations gate on <see cref="BoardPermission.Write"/> so an
-/// archived board is read-only for comments too; identity then narrows it further —
+/// archived board is read-only for comments too; identity then narrows it further:
 /// only the author edits, only the author or a board admin deletes.
 /// </summary>
 [Route("boards/{boardId:guid}/cards/{cardId:guid}/comments")]

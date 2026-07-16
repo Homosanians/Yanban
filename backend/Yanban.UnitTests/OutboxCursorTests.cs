@@ -5,10 +5,9 @@ using Yanban.Application.Realtime;
 namespace Yanban.UnitTests;
 
 /// <summary>
-/// The rule the realtime tailer lives by: dispatch immediately, advance reluctantly.
-/// These pin the hazard ADR-8 called out — a sequence number is taken at insert but the
-/// row only appears at commit, so a cursor that races ahead of the grace window silently
-/// *loses* events rather than merely skipping them.
+/// The rule the realtime tailer follows: dispatch immediately, advance reluctantly.
+/// A sequence number is taken at insert but the row only appears at commit, so a cursor
+/// that races ahead of the grace window loses events rather than merely skipping them.
 /// </summary>
 public class OutboxCursorTests
 {
@@ -34,7 +33,7 @@ public class OutboxCursorTests
     {
         var cursor = new OutboxCursor(startSequence: 0, Grace);
 
-        // Fresh off the press: inside the window, so it goes out at once — but the cursor
+        // Fresh off the press: inside the window, so it goes out at once, but the cursor
         // stays put, because a lower sequence may still be in flight behind it.
         cursor.Advance(new[] { Row(7, Now) }, Now).Count.ShouldBe(1);
         cursor.SafeSequence.ShouldBe(0);
@@ -63,7 +62,7 @@ public class OutboxCursorTests
         var early = Row(11, Now);
         cursor.Advance(new[] { early }, Now).Single().Sequence.ShouldBe(11);
 
-        // A naive `WHERE sequence > cursor` would now sit at 11 and never look back — event
+        // A naive `WHERE sequence > cursor` would now sit at 11 and never look back; event
         // 10 would be lost, not merely late. The window keeps the door open for it.
         cursor.SafeSequence.ShouldBeLessThan(10);
         cursor.Advance(new[] { late, early }, Now.AddSeconds(1)).Single().Sequence.ShouldBe(10);
@@ -75,7 +74,7 @@ public class OutboxCursorTests
         var cursor = new OutboxCursor(startSequence: 0, Grace);
 
         // Row 2 is still inside the window; 3 has aged out. Advancing to 3 would strand
-        // anything not yet committed below it, so the cursor stalls at 1 — costing a
+        // anything not yet committed below it, so the cursor stalls at 1, costing a
         // re-read, which is the cheap failure.
         var rows = new[] { Row(1, Now.AddMinutes(-1)), Row(2, Now), Row(3, Now.AddMinutes(-1)) };
 

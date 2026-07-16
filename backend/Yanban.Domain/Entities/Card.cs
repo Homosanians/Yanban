@@ -21,6 +21,6 @@ public class Card
     public DateTimeOffset? DueDate { get; set; }
     public DateTimeOffset? ArchivedAt { get; set; }
 
-    // Optimistic concurrency is handled via Postgres' system column xmin,
-    // configured as a shadow concurrency token in CardConfiguration (used from M2).
+    // Optimistic concurrency uses Postgres' system column xmin, configured as a
+    // shadow concurrency token in CardConfiguration.
 }

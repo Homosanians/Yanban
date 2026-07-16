@@ -53,8 +53,7 @@ public class ListService : IListService
     {
         var list = await GetListAsync(boardId, listId, ct);
 
-        // The one line where the old name still exists. After the next statement it is gone from
-        // the process and from the database, and the audit row is the only place it will ever be.
+        // Capture the old name before overwriting; the audit row is the only place it survives.
         var oldName = list.Name;
         list.Name = request.Name.Trim();
 

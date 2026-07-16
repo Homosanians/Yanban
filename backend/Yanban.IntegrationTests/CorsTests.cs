@@ -6,11 +6,11 @@ using Xunit;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// M16 — CORS is an env-configurable allowlist outside Development (ADR-11). The factory runs the
-/// app as <c>Testing</c>, so these exercise the allowlist branch: a listed origin is reflected, an
-/// unlisted one is refused. The pair discriminates two ways — the positive test goes red if CORS is
-/// not wired at all (no header), and the negative test goes red if the allowlist were secretly a
-/// reflect-any (an evil origin would be echoed back).
+/// CORS is an env-configurable allowlist outside Development. The factory runs the app as
+/// <c>Testing</c>, so these exercise the allowlist branch: a listed origin is reflected, an
+/// unlisted one is refused. The positive test goes red if CORS is not wired at all (no header);
+/// the negative test goes red if the allowlist were secretly reflect-any (an evil origin echoed
+/// back).
 /// </summary>
 [Collection("api")]
 public class CorsTests

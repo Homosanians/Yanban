@@ -52,9 +52,8 @@ builder.Services.AddOpenApi(options =>
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
-// Realtime (M7). The hub only gates who may listen; the hosted tailer does the sending,
-// reading the ActivityLog written by M5 as an outbox. No SignalR backplane on purpose —
-// see ADR-11.
+// The hub only gates who may listen; a hosted tailer does the sending, reading the
+// activity log as an outbox. No SignalR backplane on purpose.
 builder.Services.Configure<RealtimeOptions>(builder.Configuration.GetSection(RealtimeOptions.SectionName));
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<BoardSubscriptionRegistry>();
@@ -129,7 +128,7 @@ builder.Services
                             .Where(u => u.Id == userId)
                             .Select(u => (int?)u.TokenVersion)
                             .FirstOrDefaultAsync();
-                        return value ?? -1; // -1 => user no longer exists
+                        return value ?? -1; // -1 means the user no longer exists
                     },
                     TimeSpan.FromSeconds(60));
 
@@ -140,7 +139,7 @@ builder.Services
                 }
 
                 // Stamp the ticket with the token's own expiry. A REST call re-authenticates
-                // on every request, but a WebSocket authenticates once at the handshake — so
+                // on every request, but a WebSocket authenticates once at the handshake, so
                 // without this, a live hub connection would outlive its token indefinitely
                 // (verified: it kept receiving events straight through a logout-all). SignalR's
                 // CloseOnAuthenticationExpiration reads this to hang up at expiry. JwtBearer
@@ -151,12 +150,12 @@ builder.Services
         };
     });
 
-// CORS. The app is served same-origin through the proxy (ADR-11), so this is opt-in and NOT
-// load-bearing for the default topology. In Development any origin is reflected ("allow everything");
-// outside it, only the configured allowlist. AllowCredentials() is required for the cookie-based
-// refresh, and it forbids the "*" origin — so "allow everything" means *reflecting* the caller's
-// origin, not "*". (This does not enable cross-site cookie refresh on its own: the refresh cookie is
-// SameSite=Strict — see ADR-11 — so cross-origin unlocks bearer calls, not the refresh flow.)
+// CORS. The app is served same-origin through the proxy, so this is opt-in and unused in the
+// default topology. In Development any origin is reflected ("allow everything"); outside it, only
+// the configured allowlist. AllowCredentials() is required for the cookie-based refresh, and it
+// forbids the "*" origin, so "allow everything" reflects the caller's origin rather than sending
+// "*". This does not enable cross-site cookie refresh on its own: the refresh cookie is
+// SameSite=Strict, so cross-origin unlocks bearer calls, not the refresh flow.
 const string SpaCorsPolicy = "spa";
 var cors = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>() ?? new CorsOptions();
 builder.Services.AddCors(options =>
@@ -173,7 +172,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddAuthorization();
 
-// Resource-based authorization for boards (RBAC role × ABAC attributes). Scoped so
+// Resource-based authorization for boards (RBAC role plus ABAC attributes). Scoped so
 // the handler can resolve the caller's membership via the request DbContext.
 builder.Services.AddScoped<IAuthorizationHandler, BoardAuthorizationHandler>();
 
@@ -212,7 +211,7 @@ using (var scope = app.Services.CreateScope())
             await services.GetRequiredService<IObjectStorage>().EnsureBucketAsync(CancellationToken.None);
         }
         // AmazonClientException is the base of AmazonServiceException and wraps the
-        // connection-refused case (MinIO not running) — the realistic dev down-path —
+        // connection-refused case (MinIO not running), the realistic dev down-path,
         // while staying specific enough not to swallow a config error or NRE.
         catch (Exception ex) when (ex is HttpRequestException or AmazonClientException)
         {
@@ -223,8 +222,6 @@ using (var scope = app.Services.CreateScope())
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-// Before the rate limiter (and auth): a CORS preflight is an unauthenticated OPTIONS, and it must
-// not be counted against the /auth/* budget or a browser could be locked out of logging in.
 // Before the rate limiter (and auth): a CORS preflight is an unauthenticated OPTIONS, and it must
 // not be counted against the /auth/* budget or a browser could be locked out of logging in.
 app.UseCors(SpaCorsPolicy);
@@ -244,12 +241,12 @@ app.MapControllers();
 app.MapHub<BoardHub>("/hubs/board", options =>
 {
     // A hub is authorized once, at the handshake. Close the connection when the access
-    // token expires so a socket cannot outlive the credential that opened it — this is
-    // what bounds how long a revoked session (logout-all) can keep watching a board.
+    // token expires so a socket cannot outlive the credential that opened it. This bounds
+    // how long a revoked session (logout-all) can keep watching a board.
     options.CloseOnAuthenticationExpiration = true;
 });
 
 app.Run();
 
-// Exposed so integration tests can spin up the app via WebApplicationFactory (M10).
+// Exposed so integration tests can host the app via WebApplicationFactory.
 public partial class Program;

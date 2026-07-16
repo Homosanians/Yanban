@@ -43,8 +43,7 @@ public sealed class ConflictAppException : AppException
 
 /// <summary>
 /// The file, or the board it would land on, is over its limit. 413 rather than 400: the request is
-/// well-formed and the caller is entitled to make it — the payload is simply too large, and the
-/// client can say something useful about that.
+/// well-formed and the caller is entitled to make it, the payload is simply too large.
 /// </summary>
 public sealed class QuotaExceededAppException : AppException
 {
@@ -59,7 +58,7 @@ public sealed class PreconditionRequiredAppException : AppException
     public PreconditionRequiredAppException(string message) : base(message) { }
 }
 
-/// <summary>A supplied precondition failed — the resource changed since the client last saw it.</summary>
+/// <summary>A supplied precondition failed: the resource changed since the client last saw it.</summary>
 public sealed class PreconditionFailedAppException : AppException
 {
     public override int StatusCode => 412;

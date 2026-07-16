@@ -9,7 +9,7 @@ export interface Toast {
 }
 
 export interface ToastContextValue {
-  /** Shows a toast. Returns nothing — a toast is a statement, not a question. */
+  /** Shows a toast. Returns nothing: a toast is a statement, not a question. */
   show: (message: string, tone?: ToastTone) => void;
 }
 

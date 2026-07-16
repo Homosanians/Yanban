@@ -35,14 +35,13 @@ namespace Yanban.Infrastructure.Persistence.Migrations
                 column: "enqueued_at",
                 filter: "deleted_at IS NULL");
 
-            // The heart of the storage GC (ADR-20). Every attachment row that dies — by app delete,
-            // by cascade from a card/list/board, or by a manual DELETE in psql — enqueues its object
-            // for the worker to remove from S3, in the *same transaction* as the delete. Because it
-            // is the database doing the cascade, it must be the database doing the enqueue: nothing
-            // in the application ever sees a cascaded row.
+            // Storage GC. Every attachment row that dies (app delete, cascade from a card/list/
+            // board, or a manual DELETE in psql) enqueues its object for the worker to remove from
+            // S3, in the same transaction as the delete. The database does the cascade, so the
+            // database must do the enqueue: nothing in the application ever sees a cascaded row.
             //
-            // FOR EACH ROW, so a bulk cascade (a board with hundreds of attachments) enqueues each
-            // one. OLD is the row being deleted, still fully populated here.
+            // FOR EACH ROW, so a bulk cascade enqueues each attachment. OLD is the row being
+            // deleted, still fully populated here.
             migrationBuilder.Sql("""
                 CREATE FUNCTION enqueue_object_deletion() RETURNS trigger AS $$
                 BEGIN

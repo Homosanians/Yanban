@@ -9,9 +9,9 @@ using Yanban.Domain.Enums;
 namespace Yanban.Infrastructure.Notifications;
 
 /// <summary>
-/// Turns an outbox row into an email. Renders <b>only</b> from the row's payload — it never reaches
-/// back into the domain, because the domain has moved on: by the time this runs, the card may have
-/// been renamed, reassigned or deleted, and the mail is about what happened, not about now.
+/// Turns an outbox row into an email. Renders only from the row's payload; it never reaches back
+/// into the domain, because the domain has moved on: by the time this runs, the card may have been
+/// renamed, reassigned or deleted, and the mail is about what happened, not about now.
 /// </summary>
 public class EmailRenderer
 {

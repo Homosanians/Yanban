@@ -16,13 +16,12 @@ namespace Yanban.IntegrationTests;
 /// <summary>
 /// A REST call re-authenticates on every request, so revoking a token (logout-all) locks
 /// the caller out at once. A WebSocket does not: it is authorized once, at the handshake,
-/// and then stays open. Left alone, a hub connection would outlive the credential that
-/// opened it — a live board feed streaming to a session the user had explicitly signed out
-/// (observed directly before this was fixed).
+/// then stays open. Left alone, a hub connection would outlive the credential that opened
+/// it, streaming a live board feed to a session the user had explicitly signed out.
 ///
 /// So the connection is given the token's own lifetime: SignalR's
-/// <c>CloseOnAuthenticationExpiration</c> hangs it up when the access token expires, which
-/// is what bounds how long a revoked session can keep watching. See ADR-11.
+/// <c>CloseOnAuthenticationExpiration</c> hangs it up when the access token expires, bounding
+/// how long a revoked session can keep watching.
 /// </summary>
 [Collection("api")]
 public class HubAuthLifetimeTests
@@ -41,9 +40,9 @@ public class HubAuthLifetimeTests
             new { email, password = "correct horse battery staple", displayName = "User" });
         var issued = (await reg.Content.ReadFromJsonAsync<AccessTokenResponse>())!.AccessToken;
 
-        // The API only issues tokens in whole minutes, which is too long to wait on. Mint an
-        // equivalent one — same signature, issuer, audience and claims — that expires in
-        // seconds. Nothing about the check under test cares how long the lifetime is.
+        // The API only issues tokens in whole minutes, too long to wait on. Mint an equivalent
+        // one (same signature, issuer, audience and claims) that expires in seconds. Nothing
+        // about the check under test cares how long the lifetime is.
         var real = new JwtSecurityTokenHandler().ReadJwtToken(issued);
         var token = MintToken(
             real.Claims.First(c => c.Type == "sub").Value,
@@ -72,7 +71,7 @@ public class HubAuthLifetimeTests
         connection.State.ShouldBe(HubConnectionState.Connected);
 
         // The token lapses while the socket is open and idle. Nothing the client does
-        // triggers this — the server has to decide to hang up on its own.
+        // triggers this; the server has to decide to hang up on its own.
         var hungUp = await Task.WhenAny(closed.Task, Task.Delay(TimeSpan.FromSeconds(30)));
         hungUp.ShouldBe(closed.Task, "the hub kept a connection open past the expiry of the token that authorized it");
         connection.State.ShouldBe(HubConnectionState.Disconnected);

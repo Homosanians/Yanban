@@ -9,7 +9,7 @@ namespace Yanban.Infrastructure.Notifications;
 
 /// <summary>
 /// Writes outbox rows into the caller's unit of work. See <see cref="INotificationOutbox"/> for the
-/// contract that matters: <b>Add only, never SaveChanges</b>.
+/// contract that matters: Add only, never SaveChanges.
 /// </summary>
 public class NotificationOutbox : INotificationOutbox
 {
@@ -35,11 +35,11 @@ public class NotificationOutbox : INotificationOutbox
         CancellationToken ct)
     {
         // You are never mailed about your own doing. Assigning a card to yourself, moving your own
-        // card, commenting on your own card — all silent. This is about *activity* mail.
+        // card, commenting on your own card are all silent. This applies to activity mail only.
         //
         // SignupConfirmation is exempt: it is transactional and addressed to the account owner by
         // definition. Registration has no actor (`UserId` is null before the account exists), but a
-        // *resend* runs authenticated as you — so without this exemption the guard would eat the
+        // resend runs authenticated as you, so without this exemption the guard would eat the
         // confirmation, and POST /auth/resend-confirmation would return 204 while sending no mail.
         if (type != NotificationType.SignupConfirmation && _currentUser.UserId == recipientUserId)
             return;
@@ -47,12 +47,12 @@ public class NotificationOutbox : INotificationOutbox
         if (!await _preferences.IsEnabledAsync(recipientUserId, boardId, type, ct))
             return;
 
-        // The address as it stands *now*. If the recipient is gone by the time the worker runs, the
+        // The address as it stands now. If the recipient is gone by the time the worker runs, the
         // message still knows where it was going.
         //
         // FindAsync, not a query: at signup the recipient IS the user being registered, and their
         // row is still sitting in the change tracker unsaved. A query would go to the database, find
-        // nothing, and drop the confirmation email on the floor — which is exactly what it did.
+        // nothing, and drop the confirmation email on the floor.
         var user = await _db.Users.FindAsync([recipientUserId], ct);
         if (user is null)
             return;
@@ -71,7 +71,7 @@ public class NotificationOutbox : INotificationOutbox
             NextAttemptAt = DateTimeOffset.UtcNow,
             CreatedAt = DateTimeOffset.UtcNow
         });
-        // No SaveChanges. The caller's save is what makes this real — and what makes a rolled-back
+        // No SaveChanges. The caller's save is what makes this real, and what makes a rolled-back
         // mutation take its email down with it.
     }
 

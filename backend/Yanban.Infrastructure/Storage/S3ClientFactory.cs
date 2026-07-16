@@ -18,12 +18,11 @@ public static class S3ClientFactory
         //
         //   - AWS stopped accepting SigV2 for buckets created after June 2020, so SigV2 URLs work
         //     against MinIO and then fail the day this is pointed at real S3.
-        //   - SigV4 signs the Host header. SigV2 does not — under it a presigned URL's host could
-        //     be string-replaced after the fact, which is exactly the shortcut the split-endpoint
-        //     design below exists to avoid taking.
+        //   - SigV4 signs the Host header; SigV2 does not, so under it a presigned URL's host could
+        //     be string-replaced after the fact, the shortcut the split-endpoint design below
+        //     exists to avoid taking.
         //
-        // The SDK only reads this global; AmazonS3Config.SignatureVersion is ignored for presigning
-        // (verified: setting it alone still emitted "AWSAccessKeyId=...&Signature=...").
+        // The SDK only reads this global; AmazonS3Config.SignatureVersion is ignored for presigning.
         AWSConfigsS3.UseSignatureVersion4 = true;
     }
 

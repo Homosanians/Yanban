@@ -9,11 +9,11 @@ using Yanban.Infrastructure.Storage;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// The startup bucket-ensure is deliberately tolerant of storage being down so the API
-/// still boots (README / ADR-10) — a dev running without MinIO must still get a working
-/// auth loop. The boot path swallows exactly <c>HttpRequestException or AmazonClientException</c>.
-/// This pins that the realistic down-path (nothing listening) fails in a way that catch
-/// tolerates — verified rather than assumed — without needing a container.
+/// The startup bucket-ensure is deliberately tolerant of storage being down so the API still
+/// boots: a dev running without MinIO must still get a working auth loop. The boot path
+/// swallows exactly <c>HttpRequestException or AmazonClientException</c>. This pins that the
+/// realistic down-path (nothing listening) fails in a way that catch tolerates, without needing
+/// a container.
 /// </summary>
 public class StorageResilienceTests
 {
@@ -30,7 +30,7 @@ public class StorageResilienceTests
             Timeout = TimeSpan.FromSeconds(5)
         };
         var s3 = new AmazonS3Client(new BasicAWSCredentials("key", "secret"), config);
-        // No public endpoint configured, so the presign client is the same instance — exactly
+        // No public endpoint configured, so the presign client is the same instance, exactly
         // what DependencyInjection resolves in that case.
         var storage = new S3ObjectStorage(s3, s3, Options.Create(new S3Options { Endpoint = deadEndpoint, Bucket = "b" }));
 

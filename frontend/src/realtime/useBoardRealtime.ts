@@ -8,9 +8,9 @@ import type { Activity } from "../types";
 /**
  * Keeps a board's cached queries honest while other people change it.
  *
- * The server pushes a *notification*, never a diff: an event says what kind of thing changed
- * and nothing about its new state (ADR-11). So the only sane reaction is to drop the affected
- * queries and refetch — which is also what makes duplicate or out-of-order delivery harmless.
+ * The server pushes a notification, never a diff: an event says what kind of thing changed
+ * and nothing about its new state. So the only reaction is to drop the affected queries and
+ * refetch, which also makes duplicate or out-of-order delivery harmless.
  *
  * The hub lives at /api/hubs/board so it goes through the same origin-preserving proxy as the
  * REST API. That is why this app needs no CORS: there is no cross-origin request to allow.
@@ -26,9 +26,9 @@ export function useBoardRealtime(boardId: string | undefined, selfUserId: string
         // A browser cannot set an Authorization header on a WebSocket handshake, so SignalR
         // puts the token in the query string; the API accepts that only under /hubs.
         //
-        // This must hand back a *fresh* token, not the last one seen: the server closes the
-        // socket when the token expires, and the reconnect that follows would otherwise
-        // present the same expired token and loop.
+        // Must hand back a fresh token, not the last one seen: the server closes the socket
+        // when the token expires, and the reconnect that follows would otherwise present the
+        // same expired token and loop.
         accessTokenFactory: () => getFreshAccessToken(),
       })
       .withAutomaticReconnect()
@@ -37,7 +37,7 @@ export function useBoardRealtime(boardId: string | undefined, selfUserId: string
 
     const invalidate = (activity: Activity) => {
       // Ignore our own echo. The actor is in their own board group, so every mutation comes
-      // back to whoever made it — and invalidating on that would fight the optimistic update
+      // back to whoever made it, and invalidating on that would fight the optimistic update
       // already on screen, making a dragged card visibly snap back and settle.
       if (activity.actorId === selfUserId) return;
 
@@ -68,14 +68,14 @@ export function useBoardRealtime(boardId: string | undefined, selfUserId: string
           break;
       }
 
-      // The feed itself always moved.
+      // The feed itself always changed.
       void queryClient.invalidateQueries({ queryKey: ["boards", boardId, "activity"] });
     };
 
     connection.on("ActivityOccurred", invalidate);
 
     // The server evicts a removed member's live connections. Without this the board would
-    // simply go quiet and look fine — stale and wrong.
+    // simply go quiet and look fine while being stale and wrong.
     connection.on("BoardAccessRevoked", () => {
       void queryClient.invalidateQueries({ queryKey: ["boards"] });
     });

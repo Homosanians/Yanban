@@ -7,7 +7,7 @@ import { useAuth } from "../auth/useAuth";
 type State = "working" | "done" | "failed";
 
 /**
- * Where the emailed link lands. Anonymous on purpose — it is followed out of a mail client, which
+ * Where the emailed link lands. Anonymous on purpose: it is followed out of a mail client, which
  * has no session, and possibly on a different device from the one that signed up.
  */
 export function ConfirmEmailPage() {

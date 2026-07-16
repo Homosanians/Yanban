@@ -11,12 +11,12 @@ interface Props {
 }
 
 /**
- * Creating a board is a decision with two parts — a name and which layout to start from — so it
- * gets a dialog rather than an input wedged into a 230px tile. Shares the shell with ConfirmDialog:
- * one centred-dialog look in the app, not two.
+ * Creating a board has two parts, a name and which layout to start from, so it gets a dialog
+ * rather than an input wedged into a 230px tile. Shares the shell with ConfirmDialog: one
+ * centred-dialog look in the app, not two.
  *
  * The templates come from the server (they are configurable there), so this is a fetched list of
- * radio options, with "Empty board" always first and pre-selected — starting blank is a real,
+ * radio options, with "Empty board" always first and pre-selected. Starting blank is a real,
  * common choice, not a fallback.
  */
 export function NewBoardDialog({ pending, error, onCreate, onCancel }: Props) {
@@ -27,8 +27,8 @@ export function NewBoardDialog({ pending, error, onCreate, onCancel }: Props) {
 
   const templates = useQuery({ queryKey: ["board-templates"], queryFn: listBoardTemplates });
 
-  // Unlike the confirm dialog — which focuses Cancel, because it guards a destruction — this one
-  // exists to be filled in, so focus goes where the typing starts.
+  // The confirm dialog focuses Cancel because it guards a destruction; this one exists to be
+  // filled in, so focus goes where the typing starts.
   useEffect(() => nameRef.current?.focus(), []);
 
   useEffect(() => {

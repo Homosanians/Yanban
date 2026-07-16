@@ -14,15 +14,14 @@ public class EmailOptions
 
     /// <summary>
     /// Off for Mailpit (plaintext on 1025), on for anything real. Explicit rather than inferred
-    /// from the port: guessing at transport security is how you end up shipping credentials in
-    /// the clear.
+    /// from the port, to avoid sending credentials in the clear when the guess is wrong.
     /// </summary>
     public bool UseStartTls { get; set; }
 
     public string FromAddress { get; set; } = "no-reply@yanban.local";
     public string FromName { get; set; } = "Yanban";
 
-    /// <summary>Where the confirmation link points — the app's public origin, not the API's.</summary>
+    /// <summary>Where the confirmation link points: the app's public origin, not the API's.</summary>
     public string AppBaseUrl { get; set; } = "http://localhost:8080";
 
     /// <summary>Upper bound on how long a queued mail waits before the worker looks for it.</summary>
@@ -30,7 +29,7 @@ public class EmailOptions
 
     /// <summary>
     /// Rows claimed per pass. The claim holds a row lock for the duration of the send, so this is
-    /// also how much work one worker takes off the table at a time — small on purpose.
+    /// also how much work one worker takes off the table at a time; small on purpose.
     /// </summary>
     public int BatchSize { get; set; } = 10;
 

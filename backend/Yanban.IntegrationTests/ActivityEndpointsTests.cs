@@ -15,11 +15,10 @@ using Yanban.Application.Lists;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// M5 — the activity log. Every board mutation writes an audit row in the same
-/// transaction as the change; the board's activity feed surfaces them newest-first.
-/// The load-bearing test is <see cref="FailedOptimisticUpdate_WritesNoActivityRow"/>:
-/// it proves the audit row shares the mutation's transaction (a rejected 412 update
-/// leaves no trace), which is the whole point of "same transaction".
+/// The activity log. Every board mutation writes an audit row in the same transaction as
+/// the change; the board's activity feed surfaces them newest-first. The load-bearing test
+/// is <see cref="FailedOptimisticUpdate_WritesNoActivityRow"/>: a rejected 412 update leaves
+/// no audit row, proving the row shares the mutation's transaction.
 /// </summary>
 [Collection("api")]
 public class ActivityEndpointsTests
@@ -118,7 +117,7 @@ public class ActivityEndpointsTests
 
         var feed = await GetActivityAsync(client, ownerToken, board.Id);
 
-        // Every write path left a semantically-typed trail entry.
+        // Every write path leaves a semantically-typed trail entry.
         feed.ShouldContain(a => a.Action == "Created" && a.EntityType == "Board");
         feed.ShouldContain(a => a.Action == "Created" && a.EntityType == "Member");
         feed.ShouldContain(a => a.Action == "Created" && a.EntityType == "List");
@@ -147,7 +146,7 @@ public class ActivityEndpointsTests
         await AddMemberAsync(client, ownerToken, board.Id, editorEmail, "Editor");
         var list = await CreateListAsync(client, ownerToken, board.Id);
 
-        // The editor — not the owner — creates the card.
+        // The editor, not the owner, creates the card.
         var card = await CreateCardAsync(client, editorToken, board.Id, list.Id);
 
         var feed = await GetActivityAsync(client, ownerToken, board.Id);
@@ -181,7 +180,7 @@ public class ActivityEndpointsTests
         stale.Headers.IfMatch.Add(staleTag);
         (await client.SendAsync(stale)).StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed);
 
-        // The rejected update rolled back — and its audit row rolled back with it. Were
+        // The rejected update rolled back, and its audit row rolled back with it. Were
         // the recorder to save in its own transaction, this count would be 2.
         var afterReject = await GetActivityAsync(client, token, board.Id);
         afterReject.Count(a => a.Action == "Updated" && a.EntityType == "Card").ShouldBe(1);

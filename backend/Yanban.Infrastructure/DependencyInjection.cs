@@ -47,23 +47,23 @@ public static class DependencyInjection
         services.AddScoped<ICardTemplateService, CardTemplateService>();
         services.AddScoped<ICommentService, CommentService>();
         services.AddScoped<IActivityService, ActivityService>();
-        // Scoped so it shares the request DbContext with the services it audits — that
-        // shared unit of work is what makes each audit row commit with its mutation.
+        // Scoped so it shares the request DbContext with the services it audits; that shared
+        // unit of work is what makes each audit row commit with its mutation.
         services.AddScoped<IActivityRecorder, ActivityRecorder>();
-        // The same table read as an outbox, by the realtime tailer (ADR-11).
+        // The same table read as an outbox, by the realtime tailer.
         services.AddScoped<IActivityOutbox, ActivityOutbox>();
 
         // Email notifications. Scoped for the same reason the recorder is: the outbox row has to
         // land in the mutation's own unit of work, or we would be promising to send mail about
-        // changes that never committed (ADR-17).
+        // changes that never committed.
         services.AddScoped<INotificationPreferenceService, NotificationPreferenceService>();
         services.AddScoped<INotificationOutbox, NotificationOutbox>();
 
         // Object storage (S3-compatible; MinIO in dev), path-style addressing (required by MinIO).
         //
-        // Two clients, one job each (ADR-10). The API reaches storage on the internal network
+        // Two clients, one job each. The API reaches storage on the internal network
         // (`minio:9000` under Compose), but a presigned URL handed to the browser must name a host
-        // the *browser* can reach (`localhost:9000`) — and the host is part of the SigV4 signature,
+        // the browser can reach (`localhost:9000`), and the host is part of the SigV4 signature,
         // so it cannot be swapped in afterwards.
         //
         // A client can sign for a host it cannot itself reach: presigning is a local signature
@@ -74,7 +74,7 @@ public static class DependencyInjection
         services.AddKeyedSingleton<IAmazonS3>(S3ObjectStorage.PresignClientKey, (sp, _) =>
         {
             var o = S3Config(sp);
-            // No public endpoint => the API and the browser reach storage the same way (the
+            // No public endpoint means the API and the browser reach storage the same way (the
             // "run the API on the host" case). Reuse the one client rather than build a twin.
             return string.IsNullOrWhiteSpace(o.PublicEndpoint)
                 ? sp.GetRequiredService<IAmazonS3>()
@@ -83,8 +83,8 @@ public static class DependencyInjection
         services.AddSingleton<IObjectStorage, S3ObjectStorage>();
 
         // The quota is the same for every board today, so the policy is a singleton over options.
-        // The *interface* is what matters: a per-board or per-plan policy replaces this without
-        // AttachmentService knowing (ADR-19).
+        // The interface is what matters: a per-board or per-plan policy replaces this without
+        // AttachmentService knowing.
         services.Configure<QuotaOptions>(configuration.GetSection(QuotaOptions.SectionName));
         services.AddSingleton<IBoardQuotaPolicy, ConfiguredBoardQuotaPolicy>();
         services.AddScoped<IAttachmentService, AttachmentService>();

@@ -1,15 +1,15 @@
 /**
- * Deterministic colour from a string. Nothing is stored, and every client computes the same
- * answer, so a person is the same colour on every machine, forever.
+ * Deterministic colour from a string. Nothing is stored and every client computes the same
+ * answer, so a person shows up in the same colour on every machine.
  */
 
 /**
- * Ten hand-picked hues, all dark enough that white text on them clears WCAG AA, and all still
- * legible against a dark surface. A fixed list rather than `hsl(hash % 360, …)` is what
- * guarantees that: a raw hue wheel wanders through yellows and greens that white cannot sit on.
+ * Ten hand-picked hues, all dark enough that white text on them clears WCAG AA and all still
+ * legible against a dark surface. We use a fixed list rather than hsl(hash % 360, ...) because
+ * a raw hue wheel passes through yellows and greens that white text can't sit on.
  *
- * One palette for both themes on purpose — colour is how you recognise someone at a glance, and
- * having it change under you when the lights go out would defeat the point of having it.
+ * One palette for both themes on purpose: colour is how you recognise someone at a glance, so
+ * it shouldn't change when the theme flips.
  */
 const PALETTE = [
   "#b23c30", // brick
@@ -25,8 +25,8 @@ const PALETTE = [
 ];
 
 /**
- * FNV-1a. Not cryptography — just mixing: it has to spread well enough that two colleagues at
- * the same company, whose emails differ by one character, don't land on the same colour.
+ * FNV-1a. Not cryptography, just mixing: it has to spread well enough that two colleagues at
+ * the same company whose emails differ by one character don't land on the same colour.
  */
 function hash(value: string): number {
   let h = 2166136261;
@@ -37,6 +37,6 @@ function hash(value: string): number {
   return h >>> 0;
 }
 
-/** Stable colour for any key — an email for people, a board id for board tiles. */
+/** Stable colour for any key: an email for people, a board id for board tiles. */
 export const colorFor = (key: string): string =>
   PALETTE[hash(key.trim().toLowerCase()) % PALETTE.length];

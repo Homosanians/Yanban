@@ -9,7 +9,7 @@ namespace Yanban.API.Controllers;
 
 /// <summary>
 /// A user's own notification switches for one board. Board-scoped because that is how they are set,
-/// but they are always the <i>caller's</i>: there is no endpoint here for editing anyone else's
+/// but they are always the caller's: there is no endpoint here for editing anyone else's
 /// preferences, not even an admin's.
 /// </summary>
 public class NotificationPreferencesController : BoardScopedController

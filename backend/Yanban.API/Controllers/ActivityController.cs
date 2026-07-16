@@ -8,7 +8,7 @@ using Yanban.Infrastructure.Persistence;
 namespace Yanban.API.Controllers;
 
 /// <summary>
-/// The board's activity feed — the human-readable face of the audit log. Any board
+/// The board's activity feed, the human-readable face of the audit log. Any board
 /// member (Read) can view it; it is served newest-first and paged by a Sequence cursor.
 /// </summary>
 public class ActivityController : BoardScopedController

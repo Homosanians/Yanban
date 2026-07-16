@@ -3,9 +3,9 @@ using Yanban.Domain.Enums;
 namespace Yanban.Domain.Entities;
 
 /// <summary>
-/// A file attached to a card. The bytes live in S3-compatible object storage, never
-/// in Postgres and never proxied through the API — this row is the metadata plus the
-/// storage key used to mint presigned upload/download URLs.
+/// A file attached to a card. The bytes live in S3-compatible object storage, never in
+/// Postgres and never proxied through the API; this row is the metadata plus the storage
+/// key used to mint presigned upload/download URLs.
 /// </summary>
 public class Attachment
 {

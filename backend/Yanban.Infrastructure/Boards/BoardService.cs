@@ -39,8 +39,8 @@ public class BoardService : IBoardService
         // from membership everywhere, so there is one source of truth for RBAC.
         board.Members.Add(new BoardMember { BoardId = board.Id, UserId = userId, Role = BoardRole.Admin });
 
-        // Template wins if sent; otherwise the M11 boolean still means "the simple template". So an
-        // old client that only knows SeedDefaultLists keeps getting exactly what it used to.
+        // Template wins if sent; otherwise the SeedDefaultLists boolean still selects the simple
+        // template, so an old client that only knows that flag keeps its behaviour.
         var templateId = request.Template ?? (request.SeedDefaultLists ? "simple" : null);
         if (templateId is not null)
         {
@@ -49,9 +49,8 @@ public class BoardService : IBoardService
 
             // Seeded here rather than by client calls, so the whole board lands in the single
             // SaveChanges below: there is no window in which a half-built board is visible, and
-            // nothing to clean up if one insert fails. Ranks are chained off the previous one, the
-            // same way ListService.CreateAsync appends — no lock needed, since nothing else can
-            // reach this board until the transaction commits.
+            // nothing to clean up if one insert fails. Ranks are chained off the previous one; no
+            // lock needed, since nothing else can reach this board until the transaction commits.
             string? rank = null;
             foreach (var name in template.Lists)
             {
@@ -173,16 +172,15 @@ public class BoardService : IBoardService
 
         // Removing a member must also maintain the "assignee is always a board member"
         // invariant: unassign them from every card on this board. The card FK's SetNull
-        // only fires on user *deletion*, not on losing membership, so we do it here — in
-        // one transaction with the removal so a card can never point at a non-member.
+        // only fires on user deletion, not on losing membership, so we do it here, in one
+        // transaction with the removal so a card can never point at a non-member.
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         // The transaction alone does NOT hold that invariant, which is the whole point of the
-        // lock (ADR-14). An assignment on another connection reads membership without blocking
-        // (READ COMMITTED), so it can see this not-yet-committed member as present, pass its
-        // check, and then write *after* the sweep below has already run — leaving exactly the
-        // dangling assignee this method exists to prevent. Verified: without this lock, the
-        // forced-interleaving test leaves a card assigned to a removed member.
+        // lock. An assignment on another connection reads membership without blocking (READ
+        // COMMITTED), so it can see this not-yet-committed member as present, pass its check, and
+        // then write after the sweep below has already run, leaving exactly the dangling assignee
+        // this method exists to prevent.
         //
         // CardService.AssignAsync takes the same board lock, so the two serialize and whichever
         // loses re-reads the truth. Both take the board first, so they cannot deadlock.

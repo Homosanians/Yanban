@@ -8,7 +8,7 @@ let expiresAt = 0;
 let onUnauthorized: (() => void) | null = null;
 let refreshInFlight: Promise<string | null> | null = null;
 
-/** Treat a token as spent this long before it actually expires, so nothing races the clock. */
+/** Treat a token as expired this long before it actually does, to avoid racing the clock. */
 const EXPIRY_MARGIN_MS = 60_000;
 
 export function setAccessToken(token: string | null, tokenExpiresAt?: string): void {
@@ -64,13 +64,13 @@ export function refreshAccessToken(): Promise<string | null> {
 }
 
 /**
- * A token that is valid *now*, refreshing first if the current one is at or near expiry.
+ * Returns a token that is valid now, refreshing first if the current one is at or near expiry.
  *
- * REST calls don't need this: they discover expiry as a 401 and retry. A WebSocket cannot.
- * The hub authenticates once, at the handshake, and the server hangs the socket up the moment
- * the token expires (CloseOnAuthenticationExpiration, M7). SignalR then reconnects — and if the
- * token factory hands back the same expired token, that reconnect 401s and retries forever.
- * So the reconnect path must ask for a fresh token, not the last one it happened to see.
+ * REST calls don't need this: they discover expiry as a 401 and retry. A WebSocket can't.
+ * The hub authenticates once, at the handshake, and the server closes the socket as soon as
+ * the token expires (CloseOnAuthenticationExpiration). SignalR then reconnects, and if the
+ * token factory hands back the same expired token that reconnect 401s and retries forever.
+ * So the reconnect path has to ask for a fresh token, not reuse the last one it saw.
  */
 export async function getFreshAccessToken(): Promise<string> {
   if (accessToken && Date.now() < expiresAt - EXPIRY_MARGIN_MS) return accessToken;
@@ -81,7 +81,7 @@ interface RequestOptions {
   method?: string;
   body?: unknown;
   auth?: boolean;
-  /** Extra headers — If-Match on the one endpoint that demands it (ADR-13). */
+  /** Extra headers, e.g. If-Match on the one endpoint that requires it. */
   headers?: Record<string, string>;
 }
 

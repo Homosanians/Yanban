@@ -9,10 +9,6 @@ const DISMISS_AFTER = 6000;
 /**
  * One place that owns transient messages.
  *
- * <p>Before this there was a `.toast` class and a `dragError` useState in BoardPage — which meant a
- * failed upload in the card drawer had nowhere to go and printed itself inline instead. Two
- * mechanisms for the same job is one too many.</p>
- *
  * Toasts auto-dismiss but can be dismissed early. They stack rather than replace: two things going
  * wrong at once is exactly when you least want the first message eaten.
  */

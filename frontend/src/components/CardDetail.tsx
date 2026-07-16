@@ -61,8 +61,8 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
   // Load the server's copy into the form. Runs again after a conflict refetch, which is how
   // the user gets to see what the other person actually wrote.
   //
-  // Layout, not passive: a plain useEffect runs *after* paint, so the drawer rendered one frame
-  // with an empty title box before filling it in.
+  // useLayoutEffect, not useEffect: a plain effect runs after paint, so the drawer would render
+  // one frame with an empty title box before filling it in.
   useLayoutEffect(() => {
     if (!card.data) return;
     setTitle(card.data.title);
@@ -70,7 +70,7 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
     setDueDate(card.data.dueDate ? card.data.dueDate.slice(0, 10) : "");
   }, [card.data]);
 
-  // Escape closes the drawer — but not while a confirm dialog is up, which owns Escape itself.
+  // Escape closes the drawer, but not while a confirm dialog is up, which owns Escape itself.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !confirmDelete) onClose();
@@ -100,7 +100,7 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
       invalidateBoard();
     },
     onError: (err) => {
-      // 412: the card moved under us. Never retry without If-Match — silently overwriting
+      // 412: the card moved under us. Never retry without If-Match, since silently overwriting
       // someone else's edit is exactly what the version check exists to prevent. Refetch and
       // make the user look at the current text before they decide.
       if (err instanceof ApiError && err.status === 412) {
@@ -146,18 +146,18 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
     mutationFn: (file: File) => uploadAttachment(boardId, cardId, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: contentKeys.attachments(boardId, cardId) });
-      // The bar has to move.
+      // Upload changed usage, so refetch the storage bar.
       void queryClient.invalidateQueries({ queryKey: boardSettingsKeys.usage(boardId) });
     },
     // The server's message already names the numbers ("This board has 1.2 GB left of its 50 GB"),
-    // so there is nothing to translate — just show it.
+    // so there is nothing to translate: just show it.
     onError: (err) => show(err instanceof Error ? err.message : "The upload failed."),
   });
 
   /**
-   * Refuse an oversized file *here*, without asking the server. The API would reject it too — that
-   * is the real gate, and this is not a security control — but a 2 GB limit you discover only after
-   * a round trip is a worse experience than one you are told about immediately.
+   * Refuse an oversized file client-side, without asking the server. The API is the real gate and
+   * would reject it too; this is not a security control. But a limit you discover only after a
+   * round trip is a worse experience than one you are told about immediately.
    */
   const pick = (file: File) => {
     const max = usage.data?.maxFileBytes;
@@ -175,7 +175,7 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
 
   const download = async (attachmentId: string) => {
     // The API mints a short-lived presigned URL and the browser fetches the bytes straight
-    // from storage — they never pass through the API (ADR-10).
+    // from storage; they never pass through the API.
     const { downloadUrl } = await getDownloadUrl(boardId, cardId, attachmentId);
     window.open(downloadUrl, "_blank", "noopener");
   };
@@ -303,7 +303,7 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
                     />
                   </label>
                 )}
-                {/* The upload error now goes to a toast (pick / upload.onError), so no inline copy. */}
+                {/* Upload errors go to a toast (pick / upload.onError), so no inline copy here. */}
 
                 {attachments.data?.map((a) => (
                   <div key={a.id} className="attachment">

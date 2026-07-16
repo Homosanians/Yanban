@@ -5,9 +5,8 @@ using Yanban.Application.Common;
 namespace Yanban.Infrastructure.Attachments;
 
 /// <summary>
-/// One quota for every board, read from configuration. Deliberately the dullest possible
-/// implementation of <see cref="IBoardQuotaPolicy"/> — the interesting part is that the interface
-/// lets it be replaced without the enforcement path caring.
+/// One quota for every board, read from configuration. A per-board or per-plan policy can replace
+/// this behind <see cref="IBoardQuotaPolicy"/> without the enforcement path caring.
 /// </summary>
 public class ConfiguredBoardQuotaPolicy : IBoardQuotaPolicy
 {

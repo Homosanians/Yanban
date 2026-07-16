@@ -154,7 +154,7 @@ public class ListsCardsEndpointsTests
         var list = await CreateListAsync(client, token, board.Id);
         var card = await CreateCardAsync(client, token, board.Id, list.Id);
 
-        // Capture the ETag BEFORE any mutation — replaying this stale value must fail later.
+        // Capture the ETag BEFORE any mutation; replaying this stale value must fail later.
         var get = await client.SendAsync(Authed(HttpMethod.Get, $"/boards/{board.Id}/cards/{card.Id}", token));
         get.StatusCode.ShouldBe(HttpStatusCode.OK);
         var staleEtag = get.Headers.ETag;

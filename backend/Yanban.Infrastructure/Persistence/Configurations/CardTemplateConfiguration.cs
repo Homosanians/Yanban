@@ -25,6 +25,6 @@ public class CardTemplateConfiguration : IEntityTypeConfiguration<CardTemplate>
             .HasForeignKey(x => x.CreatedById)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // No search vector here on purpose: templates are not searchable (ADR-12).
+        // No search vector: templates are not searchable.
     }
 }

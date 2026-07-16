@@ -12,16 +12,15 @@ namespace Yanban.API.Realtime;
 /// <summary>
 /// Tails the activity log and pushes each new event to the clients watching that board.
 ///
-/// <para>M5 already writes an activity row inside every mutation's transaction, which
-/// makes that table an outbox: durable, ordered, and committed atomically with the change
-/// it describes. This is its reader. Nothing publishes from the request path, so an event
-/// can never be announced for a change that then rolled back.</para>
+/// <para>Every mutation writes an activity row inside its own transaction, which makes that
+/// table an outbox: durable, ordered, and committed atomically with the change it describes.
+/// This is its reader. Nothing publishes from the request path, so an event can never be
+/// announced for a change that then rolled back.</para>
 ///
-/// <para><b>Why there is no Redis backplane:</b> without one, <c>Clients.Group(...)</c>
-/// reaches only the connections held by this instance — and that is precisely what is
-/// wanted. Every instance runs this tailer over the same shared log, and each client is
-/// connected to exactly one instance, so every client is served by the instance it is on.
-/// The durable outbox <i>is</i> the backplane (ADR-11).</para>
+/// <para>There is no Redis backplane. Without one, <c>Clients.Group(...)</c> reaches only
+/// the connections held by this instance, which is what is wanted: every instance runs this
+/// tailer over the same shared log, and each client is connected to exactly one instance, so
+/// every client is served by the instance it is on. The durable outbox is the backplane.</para>
 /// </summary>
 public class ActivityDispatcher : BackgroundService
 {
@@ -104,7 +103,7 @@ public class ActivityDispatcher : BackgroundService
     /// <summary>
     /// Cuts a removed member's live connections off this board. Sent after the removal
     /// event itself, so they learn why the feed stopped. Eventual, not synchronous: it
-    /// happens a poll interval after the removal commits — a bounded, deliberate lag, not
+    /// happens a poll interval after the removal commits, a bounded and deliberate lag, not
     /// an open-ended one.
     /// </summary>
     private async Task EvictAsync(Guid boardId, Guid userId, CancellationToken ct)

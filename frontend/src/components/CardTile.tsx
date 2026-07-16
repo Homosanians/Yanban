@@ -10,7 +10,7 @@ interface FaceProps {
   members: BoardMember[];
 }
 
-/** The card's contents, with no drag machinery — shared by the real tile and the drag overlay. */
+/** The card's contents, with no drag machinery; shared by the real tile and the drag overlay. */
 function CardFace({ card, members }: FaceProps) {
   const assignee = members.find((m) => m.userId === card.assigneeId);
   const overdue = isOverdue(card.dueDate);
@@ -42,9 +42,9 @@ function CardFace({ card, members }: FaceProps) {
 /**
  * The copy that follows the cursor.
  *
- * A separate component on purpose: it must *not* call useSortable. The overlay lives inside the
+ * A separate component on purpose: it must not call useSortable. The overlay lives inside the
  * DndContext, so a sortable hook here would register a second droppable under the id of the card
- * being dragged — the drag would be measuring itself.
+ * being dragged, and the drag would be measuring itself.
  */
 export function CardOverlay({ card, members }: FaceProps) {
   return (

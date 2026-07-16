@@ -54,12 +54,12 @@ services:
       Jwt__Secret: "${JWT_SECRET:-dev-only-change-me-super-secret-signing-key-min-32-bytes-long}"
       Jwt__Issuer: "yanban"
       Jwt__Audience: "yanban"
-      # Extra cross-origin caller (ADR-11). Only consulted outside Development; this stack runs
-      # Development, where any origin is reflected — so here it is documentation of the knob.
+      # Extra cross-origin caller, consulted only outside Development. This stack runs in
+      # Development, where any origin is reflected.
       Cors__AllowedOrigins__0: "${CORS_ALLOWED_ORIGIN:-}"
-      # Split horizon (ADR-10): the API talks to MinIO inside the Compose network, but the
-      # presigned URLs it hands the browser must name a host the *browser* can reach. SigV4
-      # signs the Host header, so this cannot be patched after signing — the API signs with a
+      # Split horizon: the API talks to MinIO inside the Compose network, but the
+      # presigned URLs it hands the browser must name a host the browser can reach. SigV4
+      # signs the Host header, so this cannot be patched after signing: the API signs with a
       # second, presign-only client pointed at PublicEndpoint. That client never opens a socket.
       S3__Endpoint: "http://minio:9000"
       S3__PublicEndpoint: "http://localhost:9000"
@@ -70,10 +70,10 @@ services:
       - "8081:8080"
 
   # Drains the notification outbox. A separate process from the API on purpose: sending mail is
-  # slow, retried and failure-prone, and none of that belongs on a request thread (ADR-16).
+  # slow, retried and failure-prone, and none of that belongs on a request thread.
   #
   # It claims rows with FOR UPDATE SKIP LOCKED, so scaling this to N replicas partitions the queue
-  # rather than sending every message N times. It does NOT apply migrations — the API owns those.
+  # rather than sending every message N times. It does NOT apply migrations; the API owns those.
   worker:
     build:
       context: ./backend
@@ -97,7 +97,7 @@ services:
       Email__UseStartTls: "${EMAIL_USE_STARTTLS:-false}"
       Email__FromAddress: "${EMAIL_FROM_ADDRESS:-no-reply@yanban.local}"
       Email__FromName: "${EMAIL_FROM_NAME:-Yanban}"
-      # The origin the *browser* will follow the confirmation link to — the SPA, not the API.
+      # The origin the browser follows the confirmation link to: the SPA, not the API.
       Email__AppBaseUrl: "${EMAIL_APP_BASE_URL:-http://localhost:8080}"
       # The storage janitor deletes orphaned objects, so the worker needs the internal MinIO client.
       # No PublicEndpoint: it never mints presigned URLs, so there is no browser-facing host to sign.

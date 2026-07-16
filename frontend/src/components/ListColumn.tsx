@@ -40,11 +40,10 @@ export function ListColumn({
   // cards to aim at.
   const { setNodeRef, isOver } = useDroppable({ id: list.id });
 
-  // Highlight the column as a drop target whenever a drag is hovering it — over its empty area OR
-  // over one of its cards. dnd-kit only reports the column as `over` for the empty strip, so a card
-  // dragged onto another column's *cards* got no "drop here" feedback at all (the column never lit
-  // up), which read as "you can't drop here" even though the drop worked. Watch the ambient drag via
-  // the context and light up when its target belongs to this list.
+  // Highlight the column as a drop target whenever a drag is hovering it, whether over its empty
+  // area or over one of its cards. dnd-kit reports the column as `over` only for the empty strip,
+  // so a card dragged onto another column's cards would otherwise get no "drop here" feedback.
+  // Watch the ambient drag via the context and light up when its target belongs to this list.
   const { active, over } = useDndContext();
   const overId = over?.id;
   const isDropTarget =
@@ -62,7 +61,7 @@ export function ListColumn({
 
   // Only while the composer is open: a read-only board, or a board nobody is adding to, has no
   // reason to fetch templates at all. Every column shares the one query key, so the columns that
-  // *are* open resolve to a single request.
+  // are open resolve to a single request.
   const templates = useQuery({
     queryKey: contentKeys.templates(boardId),
     queryFn: () => listTemplates(boardId),
@@ -70,8 +69,8 @@ export function ListColumn({
   });
 
   const fromTemplate = useMutation({
-    // Whatever is already in the composer wins as the title — you typed it on purpose. Leave it
-    // empty and the template's own title is used.
+    // Whatever is already in the composer wins as the title, since you typed it on purpose. Leave
+    // it empty and the template's own title is used.
     mutationFn: (templateId: string) =>
       createCardFromTemplate(boardId, list.id, templateId, title.trim() || undefined),
     onSuccess: () => {

@@ -17,9 +17,9 @@ public class User
     public long? VkId { get; set; }
 
     /// <summary>
-    /// Null until the confirmation link is followed. Deliberately *not* a gate on signing in: an
-    /// unconfirmed account works, and is nagged by a banner (ADR-17). Blocking login would make
-    /// every integration test fetch a token out of the outbox before it could do anything.
+    /// Null until the confirmation link is followed. Not a gate on signing in: an unconfirmed
+    /// account works and is nagged by a banner. Blocking login would force every integration test
+    /// to fetch a token out of the outbox before it could do anything.
     /// </summary>
     public DateTimeOffset? EmailConfirmedAt { get; set; }
 

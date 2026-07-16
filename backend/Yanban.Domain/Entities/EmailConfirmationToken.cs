@@ -1,9 +1,9 @@
 namespace Yanban.Domain.Entities;
 
 /// <summary>
-/// A single-use link token. The raw bytes go out in the email; only their SHA-256 hash is stored —
-/// the same rule <see cref="RefreshToken"/> follows, and for the same reason: the database is not
-/// where live credentials live.
+/// A single-use link token. The raw bytes go out in the email; only their SHA-256 hash is
+/// stored, the same rule <see cref="RefreshToken"/> follows: the database is not where live
+/// credentials belong.
 /// </summary>
 public class EmailConfirmationToken
 {

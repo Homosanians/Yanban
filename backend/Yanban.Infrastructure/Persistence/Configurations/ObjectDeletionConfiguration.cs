@@ -10,8 +10,8 @@ public class ObjectDeletionConfiguration : IEntityTypeConfiguration<ObjectDeleti
     {
         b.ToTable("object_deletions");
 
-        // A bigserial identity — this is a work queue keyed by arrival, not a domain entity with a
-        // meaningful id. The trigger inserts by column, so the app never supplies it.
+        // A bigserial identity. This is a work queue keyed by arrival, not a domain entity with a
+        // meaningful id, and the trigger inserts by column, so the app never supplies it.
         b.HasKey(x => x.Id);
         b.Property(x => x.Id).UseIdentityAlwaysColumn();
 

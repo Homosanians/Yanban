@@ -3,10 +3,9 @@ namespace Yanban.Domain.Entities;
 /// <summary>
 /// A board-scoped preset a card can be created from ("Bug report", "Release checklist").
 ///
-/// Deliberately its own table rather than an IsTemplate flag on <see cref="Card"/> (which
-/// is how Trello models it): a flagged card would occupy a real list, hold a real rank,
-/// and — decisively — its text would land in the card search vector and pollute every
-/// search result. A template is a blueprint, not a card.
+/// Its own table rather than an IsTemplate flag on <see cref="Card"/>: a flagged card would
+/// occupy a real list, hold a real rank, and land in the card search vector, polluting search
+/// results.
 /// </summary>
 public class CardTemplate
 {

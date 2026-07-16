@@ -9,22 +9,22 @@ using Yanban.Infrastructure.Persistence;
 namespace Yanban.Infrastructure.Storage;
 
 /// <summary>
-/// Keeps object storage honest (ADR-20). Two jobs, both draining a queue the database fills:
+/// Keeps object storage honest. Two jobs, both draining a queue the database fills:
 ///
 /// <list type="number">
-/// <item><b>Deletes orphaned objects.</b> An <c>AFTER DELETE ON attachments</c> trigger enqueues
-/// the storage key of every attachment row that dies — app delete, cascade, reaper. This drains
-/// that queue to S3. It is the reason a deleted board's files do not live in the bucket forever.</item>
-/// <item><b>Reaps abandoned uploads.</b> A ticket that was minted but never completed leaves a
-/// <c>Pending</c> row holding quota (a reservation — see AttachmentService). Once it is older than
-/// any presign URL could still be valid, it is dead weight: deleting the row fires the same trigger,
-/// so its object (if the bytes ever landed) is cleaned up for free.</item>
+/// <item>Deletes orphaned objects. An <c>AFTER DELETE ON attachments</c> trigger enqueues the
+/// storage key of every attachment row that dies (app delete, cascade, reaper). This drains that
+/// queue to S3, so a deleted board's files do not live in the bucket forever.</item>
+/// <item>Reaps abandoned uploads. A ticket that was minted but never completed leaves a
+/// <c>Pending</c> row holding quota (a reservation; see AttachmentService). Once it is older than
+/// any presign URL could still be valid, it is dead weight: deleting the row fires the same
+/// trigger, so its object (if the bytes ever landed) is cleaned up too.</item>
 /// </list>
 ///
 /// <para>Claims with the same <c>FOR UPDATE SKIP LOCKED</c> as the notification outbox, and is
 /// at-least-once for the same reason: a crash after the S3 delete but before the row is marked
-/// re-deletes, and deleting an object that is already gone is a no-op. Silence would be the worse
-/// failure — an orphan that is never collected.</para>
+/// re-deletes, and deleting an object that is already gone is a no-op. The alternative would leave
+/// an orphan that is never collected.</para>
 /// </summary>
 public class StorageJanitor
 {
@@ -82,7 +82,7 @@ public class StorageJanitor
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Left pending — the next pass picks it up again. Storage being briefly unreachable
+                // Left pending; the next pass picks it up again. Storage being briefly unreachable
                 // must not lose the intent to delete.
                 deletion.Attempts += 1;
                 deletion.LastError = Truncate(ex.Message, 1000);
@@ -105,7 +105,7 @@ public class StorageJanitor
     {
         var cutoff = DateTimeOffset.UtcNow - PendingTtl;
 
-        // ExecuteDelete issues one DELETE, and the row-level trigger fires per row deleted — so the
+        // ExecuteDelete issues one DELETE, and the row-level trigger fires per row deleted, so the
         // objects are enqueued without loading anything into memory.
         return await _db.Attachments
             .Where(a => a.Status == AttachmentStatus.Pending && a.CreatedAt < cutoff)

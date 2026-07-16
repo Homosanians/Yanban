@@ -15,12 +15,12 @@ using Yanban.Application.Lists;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// M13 — the audit log grows a memory and a search box.
+/// The audit log grows a memory and a search box.
 ///
 /// <para>The load-bearing one is <see cref="RenamingACard_RecordsWhatItWasCalled"/>: an audit trail
-/// that says "Updated" without saying *from what* cannot answer the only question anyone ever asks
-/// of it. And <see cref="Search_NarrowsTheFeed_ButDoesNotReorderIt"/> pins the other half of the
-/// decision — a search over a chronology must stay a chronology.</para>
+/// that says "Updated" without saying from what cannot answer the only question anyone asks of it.
+/// And <see cref="Search_NarrowsTheFeed_ButDoesNotReorderIt"/> pins the other half: a search over a
+/// chronology must stay a chronology.</para>
 /// </summary>
 [Collection("api")]
 public class AuditSearchTests
@@ -73,8 +73,8 @@ public class AuditSearchTests
             .Content.ReadFromJsonAsync<CardDto>(Json))!;
 
     /// <summary>
-    /// The card PUT is the one mutation that demands an <c>If-Match</c> — without it the API answers
-    /// 428, by design (ADR-6). So an audit test has to speak optimistic concurrency too.
+    /// The card PUT is the one mutation that demands an <c>If-Match</c>; without it the API answers
+    /// 428, by design. So an audit test has to speak optimistic concurrency too.
     /// </summary>
     private async Task<HttpResponseMessage> UpdateCardAsync(
         HttpClient client, string token, Guid boardId, CardDto card, string title, string? description = null)
@@ -148,7 +148,7 @@ public class AuditSearchTests
     }
 
     /// <summary>
-    /// An edit that leaves the title alone is not a rename. Recording "Alpha → Alpha" would be noise
+    /// An edit that leaves the title alone is not a rename. Recording "Alpha to Alpha" would be noise
     /// in the one place that exists to be read carefully.
     /// </summary>
     [Fact]
@@ -172,7 +172,7 @@ public class AuditSearchTests
     // --- search -------------------------------------------------------------
 
     /// <summary>
-    /// The search must reach the *old* name — that is the entire point of keeping it. Someone
+    /// The search must reach the old name, which is the entire point of keeping it. Someone
     /// hunting for a card they remember by its former title is exactly who this feature is for.
     /// </summary>
     [Fact]
@@ -188,22 +188,22 @@ public class AuditSearchTests
 
         var hits = await FeedAsync(client, token, board.Id, "?q=kubernetes");
 
-        // The rename row's *summary* reads `Updated "Compose is enough"` — the word "Kubernetes"
-        // appears nowhere in it. The only way this row can come back from a search for "kubernetes"
+        // The rename row's summary reads `Updated "Compose is enough"`; the word "Kubernetes"
+        // appears nowhere in it. The only way this row comes back from a search for "kubernetes"
         // is if old_value is in the search vector, which is the whole claim being made here.
         hits.ShouldContain(a => a.Action == "Updated" && a.EntityType == "Card");
         var row = hits.Single(a => a.Action == "Updated");
         row.OldValue.ShouldBe("Kubernetes migration");
         row.NewValue.ShouldBe("Compose is enough");
 
-        // The creation row matches too, on its summary — that is correct, not a leak: the card was
+        // The creation row matches too, on its summary; that is correct, not a leak: the card was
         // once called that, and both facts are part of the same history.
         hits.ShouldContain(a => a.Action == "Created");
     }
 
     /// <summary>
-    /// An audit log is a chronology. The search narrows it; it must not re-sort it by relevance —
-    /// "what happened, in order" is the question, and ts_rank does not answer it.
+    /// An audit log is a chronology. The search narrows it; it must not re-sort it by relevance.
+    /// "What happened, in order" is the question, and ts_rank does not answer it.
     /// </summary>
     [Fact]
     public async Task Search_NarrowsTheFeed_ButDoesNotReorderIt()
@@ -266,7 +266,7 @@ public class AuditSearchTests
 
     /// <summary>
     /// websearch_to_tsquery, not to_tsquery: a user who types a trailing "&" must get an empty
-    /// result, not a 500 (ADR-12). Anything a search box can produce, the parser has to survive.
+    /// result, not a 500. Anything a search box can produce, the parser has to survive.
     /// </summary>
     [Fact]
     public async Task AGarbageQuery_DoesNotBlowUp()

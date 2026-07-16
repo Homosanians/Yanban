@@ -5,7 +5,7 @@ namespace Yanban.Application.Abstractions;
 /// <summary>
 /// Read side of the activity log when it is used as an outbox: unscoped by board and
 /// ordered oldest-first, which is what a tailer wants (the board feed in
-/// <see cref="IActivityService"/> is the opposite — board-scoped and newest-first).
+/// <see cref="IActivityService"/> is the opposite, board-scoped and newest-first).
 /// </summary>
 public interface IActivityOutbox
 {

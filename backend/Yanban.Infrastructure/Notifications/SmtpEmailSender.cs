@@ -32,7 +32,7 @@ public class SmtpEmailSender : IEmailSender
         using var client = new SmtpClient();
 
         // Mailpit speaks plaintext on 1025 and offers no TLS at all; a real relay must have it.
-        // Explicit either way — SecureSocketOptions.Auto would quietly accept an unencrypted
+        // Explicit either way: SecureSocketOptions.Auto would quietly accept an unencrypted
         // session against a relay that merely failed to advertise STARTTLS.
         await client.ConnectAsync(
             _options.Host,

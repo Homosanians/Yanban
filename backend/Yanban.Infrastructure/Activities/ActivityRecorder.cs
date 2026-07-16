@@ -6,10 +6,10 @@ using Yanban.Infrastructure.Persistence;
 namespace Yanban.Infrastructure.Activities;
 
 /// <summary>
-/// Adds an <see cref="ActivityLog"/> row to the request's tracked context. It shares
-/// the scoped <see cref="YanbanDbContext"/> with the calling service and never saves
-/// on its own, so the row is flushed by the caller's <c>SaveChangesAsync</c> — in the
-/// same transaction as the change it records.
+/// Adds an <see cref="ActivityLog"/> row to the request's tracked context. Shares the scoped
+/// <see cref="YanbanDbContext"/> with the calling service and never saves on its own, so the row
+/// is flushed by the caller's <c>SaveChangesAsync</c>, in the same transaction as the change it
+/// records.
 /// </summary>
 public class ActivityRecorder : IActivityRecorder
 {
@@ -31,8 +31,8 @@ public class ActivityRecorder : IActivityRecorder
         string? oldValue = null,
         string? newValue = null)
     {
-        // Every board mutation runs inside an authenticated, board-authorized request,
-        // so an actor is always present; its absence is a wiring bug, not a user error.
+        // Every board mutation runs inside an authenticated, board-authorized request, so an
+        // actor is always present; its absence is a wiring bug, not a user error.
         var actorId = _currentUser.UserId
             ?? throw new InvalidOperationException("Cannot record activity without an authenticated user.");
 

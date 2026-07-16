@@ -13,8 +13,8 @@ const readStoredMode = (): ThemeMode => {
 /**
  * Owns the light/dark decision.
  *
- * The provider resolves "system" down to a concrete theme and stamps *that* on &lt;html&gt;, so the
- * stylesheet only ever has to know about `[data-theme="dark"]` — no CSS anywhere reasons about
+ * The provider resolves "system" down to a concrete theme and stamps that on <html>, so the
+ * stylesheet only ever has to know about `[data-theme="dark"]` and no CSS anywhere reasons about
  * "system". The same stamp is applied before first paint by the inline script in index.html;
  * this keeps it true from then on.
  */
@@ -24,7 +24,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     darkQuery().matches ? "dark" : "light",
   );
 
-  // "System" has to mean *live*: someone flipping their OS to dark expects the app to follow
+  // "System" has to mean live: someone flipping their OS to dark expects the app to follow
   // there and then, not on the next reload.
   useEffect(() => {
     const query = darkQuery();
@@ -38,7 +38,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = resolved;
-    // Tells the browser to render its own furniture — scrollbars, date pickers, autofill — to
+    // Tells the browser to render its own furniture (scrollbars, date pickers, autofill) to
     // match. Without it a dark board keeps a bright white scrollbar down its side.
     root.style.colorScheme = resolved;
   }, [resolved]);

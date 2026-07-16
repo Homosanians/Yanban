@@ -26,7 +26,7 @@ using Yanban.Infrastructure.Persistence;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// M12 — email notifications on a transactional outbox.
+/// Email notifications on a transactional outbox.
 ///
 /// <para>Two tests here carry the design. <see cref="Enqueue_DoesNotSave_UntilTheCallerDoes"/>
 /// pins the contract that makes the outbox transactional at all: the writer only <c>Add</c>s, so a
@@ -97,7 +97,7 @@ public class NotificationTests
         return (await res.Content.ReadFromJsonAsync<CardDto>(Json))!;
     }
 
-    /// <summary>A DbContext outside any request — the only way to see what actually committed.</summary>
+    /// <summary>A DbContext outside any request: the only way to see what actually committed.</summary>
     private async Task<T> WithDbAsync<T>(Func<YanbanDbContext, Task<T>> query)
     {
         using var scope = _factory.Services.CreateScope();
@@ -131,7 +131,7 @@ public class NotificationTests
     }
 
     /// <summary>
-    /// The soft policy, pinned. An unconfirmed account is nagged, not locked out — if this ever
+    /// The soft policy, pinned. An unconfirmed account is nagged, not locked out; if this ever
     /// becomes a gate, it should be a deliberate decision that breaks this test loudly.
     /// </summary>
     [Fact]
@@ -166,14 +166,14 @@ public class NotificationTests
             .Content.ReadFromJsonAsync<JsonElement>();
         me.GetProperty("emailConfirmed").GetBoolean().ShouldBeTrue();
 
-        // Replaying a spent link must not work — it is a bearer credential that has been used.
+        // Replaying a spent link must not work; it is a bearer credential that has been used.
         var second = await client.PostAsJsonAsync("/auth/confirm-email", new { token = confirmToken });
         second.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     /// <summary>
-    /// Resend runs authenticated <i>as the recipient</i>, so the actor check in
-    /// <c>NotificationOutbox.EnqueueAsync</c> — "never mail me about my own doing" — would eat the
+    /// Resend runs authenticated as the recipient, so the actor check in
+    /// <c>NotificationOutbox.EnqueueAsync</c> (never mail me about my own doing) would eat the
     /// confirmation unless <c>SignupConfirmation</c> is exempt. Symptom before the fix:
     /// <c>POST /auth/resend-confirmation</c> returns 204, the token row is written, and no mail is
     /// ever queued (the 204 lies). Registration queues one confirmation; a resend must queue a second.
@@ -224,7 +224,7 @@ public class NotificationTests
 
     /// <summary>
     /// You are never mailed about your own doing. Without the actor check in
-    /// <c>NotificationOutbox.EnqueueAsync</c>, assigning a card to yourself mails you about it —
+    /// <c>NotificationOutbox.EnqueueAsync</c>, assigning a card to yourself mails you about it,
     /// which is both useless and the fastest way to get a notification system muted.
     /// </summary>
     [Fact]
@@ -244,7 +244,7 @@ public class NotificationTests
     }
 
     /// <summary>
-    /// CommentCreated is the one type that is off by default — the settings panel shows it
+    /// CommentCreated is the one type that is off by default: the settings panel shows it
     /// unchecked, and the code has to agree with the panel. Turning it on then produces the mail,
     /// which proves the default is what suppressed it rather than a missing enqueue.
     /// </summary>
@@ -309,7 +309,7 @@ public class NotificationTests
 
     /// <summary>
     /// The whole design in one assertion: <c>EnqueueAsync</c> only <c>Add</c>s. Nothing is in the
-    /// table until the *caller* saves — which is what makes a rolled-back mutation take its email
+    /// table until the caller saves, which is what makes a rolled-back mutation take its email
     /// down with it. Put a <c>SaveChanges</c> inside the outbox and this goes red immediately.
     /// </summary>
     [Fact]
@@ -353,14 +353,14 @@ public class NotificationTests
     /// Ten pending messages, two workers, a batch size of five, and a sender slow enough that the
     /// two passes genuinely overlap.
     ///
-    /// <para><b>The row lock is what stops a duplicate.</b> Take <c>FOR UPDATE</c> out of the claim
-    /// and both workers read the same five rows from the same snapshot: the same mail is sent twice,
-    /// and this goes red on the duplicate check. Watched, not assumed.</para>
+    /// <para>The row lock is what stops a duplicate. Take <c>FOR UPDATE</c> out of the claim and
+    /// both workers read the same five rows from the same snapshot: the same mail is sent twice,
+    /// and this goes red on the duplicate check.</para>
     ///
-    /// <para>Note what this does <i>not</i> prove. A plain <c>FOR UPDATE</c> — no <c>SKIP LOCKED</c>
-    /// — also passes: the second worker simply blocks, wakes to find those rows spent, and scans on
-    /// to the other five. Same outcome, serialized. What <c>SKIP LOCKED</c> actually buys is that it
-    /// does not block at all, which is a different property and gets its own test below.</para>
+    /// <para>Note what this does not prove. A plain <c>FOR UPDATE</c>, no <c>SKIP LOCKED</c>, also
+    /// passes: the second worker simply blocks, wakes to find those rows spent, and scans on to the
+    /// other five. Same outcome, serialized. What <c>SKIP LOCKED</c> actually buys is that it does
+    /// not block at all, which is a different property and gets its own test below.</para>
     /// </summary>
     [Fact]
     public async Task TwoWorkers_NeverSendTheSameMessageTwice()
@@ -368,10 +368,10 @@ public class NotificationTests
         var client = NewClient();
         var (_, userId, email) = await RegisterAsync(client);
 
-        // The claim query is global — it asks "what is Pending?", not "what is Pending for this
+        // The claim query is global: it asks "what is Pending?", not "what is Pending for this
         // test". Every other test in this collection leaves its own signup confirmations queued, and
         // a worker would happily claim those instead of ours, making the batch arithmetic below
-        // meaningless. So: drain the queue to empty first, and only then seed a known ten.
+        // meaningless. So drain the queue to empty first, and only then seed a known ten.
         // (Tests in a collection do not run in parallel, so nothing refills it behind us.)
         await DrainAsync();
 
@@ -404,7 +404,7 @@ public class NotificationTests
         var sent = new ConcurrentBag<string>();
         var options = Options.Create(new EmailOptions { BatchSize = 5 });
 
-        // Each worker gets its own scope, and so its own DbContext and its own connection — two
+        // Each worker gets its own scope, and so its own DbContext and its own connection; two
         // workers sharing a connection would serialize in the client and prove nothing.
         async Task<int> RunWorker()
         {
@@ -420,7 +420,7 @@ public class NotificationTests
 
         var claims = await Task.WhenAll(RunWorker(), RunWorker());
 
-        // Nothing was sent twice — the lock did its job. Without it, both workers claim the same
+        // Nothing was sent twice; the lock did its job. Without it, both workers claim the same
         // five and this is 15 sends of 10 distinct subjects.
         sent.Count.ShouldBe(10);
         sent.Distinct().Count().ShouldBe(10);
@@ -445,12 +445,12 @@ public class NotificationTests
     /// What <c>SKIP LOCKED</c> is actually for, stated as an ordering rather than a stopwatch.
     ///
     /// <para>Worker A claims five messages and sits inside a very slow send, holding their row locks
-    /// with its transaction still open. Worker B then runs. It must <b>step over</b> A's five, take
-    /// the other five, and finish — <i>while A is still going</i>.</para>
+    /// with its transaction still open. Worker B then runs. It must step over A's five, take the
+    /// other five, and finish while A is still going.</para>
     ///
     /// <para>Downgrade the claim to a plain <c>FOR UPDATE</c> and B blocks on A's locks until A
     /// commits, so B cannot possibly finish first: <c>slowWorker.IsCompleted</c> is true by the time
-    /// B returns, and this goes red. No timing threshold to tune — the assertion is "B beat A", and
+    /// B returns, and this goes red. No timing threshold to tune: the assertion is "B beat A", and
     /// A is deliberately glacial.</para>
     /// </summary>
     [Fact]
@@ -497,11 +497,11 @@ public class NotificationTests
             return await processor.ProcessBatchAsync(CancellationToken.None);
         }
 
-        // A: claims five and crawls — five sends at two seconds each, locks held throughout.
+        // A: claims five and crawls: five sends at two seconds each, locks held throughout.
         var slowWorker = RunWorker(TimeSpan.FromSeconds(2));
 
         // Give A time to have taken its batch. (Generous: we are proving B does not block, so the
-        // only thing this delay can do is make the test *harder* to pass.)
+        // only thing this delay can do is make the test harder to pass.)
         await Task.Delay(TimeSpan.FromSeconds(1));
 
         // B: instant sender. If the claim blocks, this cannot return until A has committed.
@@ -597,7 +597,7 @@ public class NotificationTests
 
         public async Task SendAsync(OutgoingEmail email, CancellationToken ct)
         {
-            // Long enough that the two claims genuinely overlap — without this the first worker
+            // Long enough that the two claims genuinely overlap; without this the first worker
             // finishes before the second starts and the race is never run.
             await Task.Delay(_delay, ct);
             _sent.Add(email.Subject);
@@ -610,7 +610,7 @@ public class NotificationTests
             throw new InvalidOperationException("The relay is down.");
     }
 
-    /// <summary>No authenticated request behind this call — so nothing is ever "your own doing".</summary>
+    /// <summary>No authenticated request behind this call, so nothing is ever "your own doing".</summary>
     private sealed class NoCurrentUser : ICurrentUser
     {
         public Guid? UserId => null;

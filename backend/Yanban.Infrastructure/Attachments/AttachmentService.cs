@@ -33,18 +33,16 @@ public class AttachmentService : IAttachmentService
     private TimeSpan Expiry => TimeSpan.FromMinutes(_options.PresignExpiryMinutes);
 
     /// <summary>
-    /// Mints a presigned PUT — and is the <b>one</b> place the quota is enforced.
+    /// Mints a presigned PUT, and is the one place the quota is enforced.
     ///
-    /// <para>Serialized on the board row (ADR-14, the same idiom as the move lock). The check is a
-    /// read followed by a write, and two callers who each read "49 GB used" would each conclude
-    /// they had room for another gigabyte. With the lock they queue, and the second one reads what
-    /// the first actually committed.</para>
+    /// <para>Serialized on the board row. The check is a read followed by a write, and two callers
+    /// who each read "49 GB used" would each conclude they had room for another gigabyte. With the
+    /// lock they queue, and the second one reads what the first actually committed.</para>
     ///
-    /// <para>Pending rows count against the board. <b>A ticket is a reservation</b>: without that,
-    /// two concurrent 2 GB uploads both pass a check that neither could pass second, and the board
-    /// sails past its limit while both are still in flight. The cost is that an abandoned ticket
-    /// holds space until the worker's reaper sweeps it (M15) — a bounded, self-healing leak, which
-    /// is the better failure.</para>
+    /// <para>Pending rows count against the board, so a ticket is a reservation: without that, two
+    /// concurrent 2 GB uploads both pass a check that neither could pass second, and the board
+    /// sails past its limit while both are still in flight. A reservation holds space until the
+    /// reaper sweeps it, so an abandoned ticket is a bounded, self-healing leak.</para>
     /// </summary>
     public async Task<UploadTicketDto> RequestUploadAsync(Guid boardId, Guid cardId, CreateAttachmentRequest request, CancellationToken ct)
     {
@@ -63,7 +61,7 @@ public class AttachmentService : IAttachmentService
         // the statement verbatim so FOR UPDATE stays at the top level.
         await _db.Boards.FromSql($"SELECT * FROM boards WHERE id = {boardId} FOR UPDATE").ToListAsync(ct);
 
-        // Read *after* the lock: a caller that queued behind another upload wakes and sums what
+        // Read after the lock: a caller that queued behind another upload wakes and sums what
         // actually committed, not the snapshot it arrived with.
         var used = await UsedBytesAsync(boardId, ct);
 
@@ -98,8 +96,8 @@ public class AttachmentService : IAttachmentService
     {
         var quota = await _quota.GetAsync(boardId, ct);
 
-        // The bar shows what is *there*, not what is merely spoken for: counting a stranger's
-        // half-finished upload as used space would be baffling to look at.
+        // The bar shows what is there, not what is merely spoken for: counting a stranger's
+        // half-finished upload as used space would be confusing.
         var ready = await _db.Attachments
             .Where(a => a.Card.List.BoardId == boardId && a.Status == AttachmentStatus.Ready)
             .ToListAsync(ct);
@@ -112,7 +110,7 @@ public class AttachmentService : IAttachmentService
     }
 
     /// <summary>
-    /// What the board is holding *and* what it has promised to hold. Pending rows are reservations —
+    /// What the board is holding and what it has promised to hold. Pending rows are reservations;
     /// see <see cref="RequestUploadAsync"/>.
     /// </summary>
     private Task<long> UsedBytesAsync(Guid boardId, CancellationToken ct) =>
@@ -121,7 +119,7 @@ public class AttachmentService : IAttachmentService
                         && (a.Status == AttachmentStatus.Ready || a.Status == AttachmentStatus.Pending))
             .SumAsync(a => a.SizeBytes, ct);
 
-    /// <summary>Bytes as a person would say them — this text goes straight into a toast.</summary>
+    /// <summary>Bytes as a person would say them; this text goes straight into a toast.</summary>
     private static string Format(long bytes)
     {
         string[] units = ["B", "KB", "MB", "GB", "TB"];
@@ -139,21 +137,21 @@ public class AttachmentService : IAttachmentService
     /// Confirms an upload landed and flips the attachment to Ready. Idempotent: a client whose
     /// response was dropped will retry, and retrying must not be punished.
     ///
-    /// <para>Serialized on the attachment row (ADR-14). "Already Ready? return early" is a
-    /// check-then-write, and <c>attachments</c> carries no <c>xmin</c> token, so nothing made a
-    /// second concurrent caller lose: both read Pending, both passed the size check, and both
-    /// wrote an audit row. One upload produced several "Attached …" events — which the outbox
-    /// tailer then fanned out to every client watching the board. Measured, not theorized.</para>
+    /// <para>Serialized on the attachment row. Returning early on an already-Ready row is a
+    /// check-then-write, and <c>attachments</c> carries no <c>xmin</c> token, so without the lock
+    /// a second concurrent caller loses nothing: both read Pending, both pass the size check, and
+    /// both write an audit row. One upload then produces several "Attached" events, which the
+    /// outbox tailer fans out to every client watching the board.</para>
     ///
-    /// <para>Idempotent has to mean idempotent in its <i>effects</i>, not just in its status code.</para>
+    /// <para>Idempotent has to mean idempotent in its effects, not just in its status code.</para>
     /// </summary>
     public async Task<AttachmentDto> CompleteAsync(Guid boardId, Guid cardId, Guid attachmentId, CancellationToken ct)
     {
-        // Scope + 404 check, deliberately *not* materializing a tracked entity: the tracking load
-        // happens under the lock below. Using FindAsync here would defeat the whole fix — EF hands
-        // an already-tracked instance straight back from the change tracker rather than overwriting
-        // it with fresh column values, so the post-lock re-read would silently return the stale
-        // Pending status and every caller would still write an audit row. (Measured: it did.)
+        // Scope and 404 check, deliberately not materializing a tracked entity: the tracking load
+        // happens under the lock below. FindAsync here would hand an already-tracked instance
+        // straight back from the change tracker rather than overwriting it with fresh column
+        // values, so the post-lock re-read would silently return the stale Pending status and
+        // every caller would still write an audit row.
         var exists = await _db.Attachments.AnyAsync(
             a => a.Id == attachmentId && a.CardId == cardId && a.Card.List.BoardId == boardId, ct);
         if (!exists)
@@ -162,8 +160,7 @@ public class AttachmentService : IAttachmentService
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         // `attachments` has no concurrency token, so SELECT * is safe for FromSql, and ToListAsync
-        // runs the statement verbatim so FOR UPDATE stays at the top level (the idiom already used
-        // by CardService.MoveAsync and AuthService.RefreshAsync).
+        // runs the statement verbatim so FOR UPDATE stays at the top level.
         var locked = await _db.Attachments
             .FromSql($"SELECT * FROM attachments WHERE id = {attachmentId} FOR UPDATE")
             .ToListAsync(ct);
@@ -172,8 +169,8 @@ public class AttachmentService : IAttachmentService
 
         var attachment = locked[0];
 
-        // Re-read the status *after* the lock: the caller that queued behind the winner wakes up
-        // here, sees Ready, and takes the early return — one row, one event.
+        // Re-read the status after the lock: the caller that queued behind the winner wakes up
+        // here, sees Ready, and takes the early return: one row, one event.
         if (attachment.Status == AttachmentStatus.Ready)
         {
             await tx.CommitAsync(ct);
@@ -221,12 +218,11 @@ public class AttachmentService : IAttachmentService
     {
         var attachment = await FindAsync(boardId, cardId, attachmentId, ct);
 
-        // No S3 call here anymore (ADR-20). Removing the row fires an AFTER DELETE trigger that
-        // queues the object for the worker to delete — the *same* path a cascade takes when a card
-        // or board is deleted out from under this service. Two paths deleting the same object (a
-        // direct S3 call here, plus the trigger's queue) would mean deleting it twice; one path is
-        // the point. The cost is that deletion is now eventual, which is a feature: a card delete no
-        // longer fails because storage hiccuped.
+        // No S3 call here. Removing the row fires an AFTER DELETE trigger that queues the object
+        // for the worker to delete, the same path a cascade takes when a card or board is deleted
+        // out from under this service. Routing every deletion through that one queue avoids two
+        // paths deleting the same object. Deletion is eventual as a result, so a card delete does
+        // not fail because storage hiccuped.
         _db.Attachments.Remove(attachment);
         if (attachment.Status == AttachmentStatus.Ready)
             _activity.Record(boardId, ActivityAction.Deleted, ActivityEntityTypes.Attachment, attachmentId, $"Removed \"{attachment.FileName}\"");

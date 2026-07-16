@@ -14,7 +14,7 @@ public record UpdateCardTemplateRequest(
 
 /// <summary>
 /// Creates a real card from a template. <see cref="Title"/> overrides the template's title
-/// when supplied — the common case is "Bug: &lt;what broke&gt;" off a "Bug report" template.
+/// when supplied; the common case is "Bug: &lt;what broke&gt;" off a "Bug report" template.
 /// </summary>
 public record CreateCardFromTemplateRequest(
     [Required] Guid TemplateId,

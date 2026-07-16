@@ -38,7 +38,7 @@ public class YanbanApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("Jwt__RefreshTokenDays", "30");
 
         // Poll the outbox hard so realtime tests do not wait on a 500ms tick. The grace
-        // window is left at its default — the out-of-order test depends on its real value.
+        // window is left at its default; the out-of-order test depends on its real value.
         Environment.SetEnvironmentVariable("Realtime__PollIntervalMs", "100");
 
         Environment.SetEnvironmentVariable("S3__Endpoint", _minio.GetConnectionString());
@@ -52,9 +52,8 @@ public class YanbanApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("Quota__MaxFileBytes", "1048576");    // 1 MiB
         Environment.SetEnvironmentVariable("Quota__MaxBoardBytes", "5242880");   // 5 MiB
 
-        // Testing is NOT Development, so CORS runs its allowlist branch — exactly the one worth
-        // gating. One origin on the list lets CorsTests prove a listed origin is reflected and an
-        // unlisted one is refused.
+        // Testing is NOT Development, so CORS runs its allowlist branch. One origin on the list
+        // lets CorsTests prove a listed origin is reflected and an unlisted one is refused.
         Environment.SetEnvironmentVariable("Cors__AllowedOrigins__0", "https://app.yanban.example");
     }
 

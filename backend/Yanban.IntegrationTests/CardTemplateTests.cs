@@ -16,7 +16,7 @@ using Yanban.Domain.Entities;
 
 namespace Yanban.IntegrationTests;
 
-/// <summary>Board-scoped card templates (ADR-12): a blueprint stamped onto a card, not a live link.</summary>
+/// <summary>Board-scoped card templates: a blueprint stamped onto a card, not a live link.</summary>
 [Collection("api")]
 public class CardTemplateTests
 {
@@ -129,7 +129,7 @@ public class CardTemplateTests
         (await client.SendAsync(Authed(HttpMethod.Post, $"/boards/{board.Id}/templates", editorToken, body)))
             .StatusCode.ShouldBe(HttpStatusCode.Created);
 
-        // A Viewer may still read them — templates follow the board's Read/Write split.
+        // A Viewer may still read them; templates follow the board's Read/Write split.
         (await ListTemplatesAsync(client, viewerToken, board.Id)).Count.ShouldBe(1);
     }
 

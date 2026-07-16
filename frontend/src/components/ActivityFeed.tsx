@@ -24,7 +24,7 @@ export function ActivityFeed({ boardId, members, onClose }: Props) {
   const [action, setAction] = useState("");
   const [entityType, setEntityType] = useState("");
 
-  // One request per pause in typing, not per keystroke — the same 250ms the command palette uses.
+  // One request per pause in typing, not per keystroke; the same 250ms the command palette uses.
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(q.trim()), 250);
     return () => clearTimeout(timer);
@@ -37,7 +37,7 @@ export function ActivityFeed({ boardId, members, onClose }: Props) {
     entityType: entityType || undefined,
   };
 
-  // Keyset paging, mirroring the API: the next page asks for entries *before* the oldest sequence
+  // Keyset paging, mirroring the API: the next page asks for entries before the oldest sequence
   // already held. The filters are part of the query key, so changing one starts a fresh feed rather
   // than appending different results to the old one.
   const feed = useInfiniteQuery({
@@ -109,7 +109,7 @@ export function ActivityFeed({ boardId, members, onClose }: Props) {
         <ul className="plain">
           {entries.map((a) => {
             // The feed carries a display name but not an email, and the avatar's colour is a
-            // function of the email — so an actor who has since left the board gets no avatar
+            // function of the email, so an actor who has since left the board gets no avatar
             // rather than a differently-coloured one.
             const actor = members.find((m) => m.userId === a.actorId);
             return (

@@ -6,7 +6,7 @@ using Yanban.Application.Boards;
 namespace Yanban.API.Controllers;
 
 /// <summary>
-/// The starter layouts a new board can be seeded from. Authenticated but not board-scoped — there
+/// The starter layouts a new board can be seeded from. Authenticated but not board-scoped: there
 /// is no board yet, and anyone who may create one may see the templates on offer.
 /// </summary>
 [ApiController]

@@ -49,9 +49,8 @@ public class CommentService : ICommentService
         _activity.Record(boardId, ActivityAction.Created, ActivityEntityTypes.Comment, comment.Id, "Commented");
 
         // A comment notifies the card's assignee, and nobody else. There is no participants or
-        // watchers concept in this domain, and inventing one to serve a notification would be the
-        // tail wagging the dog. (The outbox drops it if the assignee *is* the author, and this
-        // type is off by default — see NotificationDefaults.)
+        // watchers concept in this domain. (The outbox drops it if the assignee is the author,
+        // and this type is off by default; see NotificationDefaults.)
         var card = await _db.Cards
             .AsNoTracking()
             .Where(c => c.Id == cardId)

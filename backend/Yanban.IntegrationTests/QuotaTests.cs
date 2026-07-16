@@ -15,18 +15,17 @@ using Yanban.Application.Lists;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// M14 — upload quotas. The test fixture shrinks them to 1 MiB per file and 5 MiB per board
+/// Upload quotas. The test fixture shrinks them to 1 MiB per file and 5 MiB per board
 /// (see <see cref="YanbanApiFactory"/>); production is 2 GiB and 50 GiB.
 ///
 /// <para><see cref="ConcurrentUploads_CannotBothSlipUnderTheSameLimit"/> is the one that matters.
 /// The quota check is a read followed by a write, and without the board lock two callers each read
-/// "there is room for one more" and each conclude they are the one. It fails without the lock — I
-/// watched it.</para>
+/// "there is room for one more" and each conclude they are the one. It fails without the lock.</para>
 /// </summary>
 [Collection("api")]
 public class QuotaTests
 {
-    private const long MaxFileBytes = 1024 * 1024;      // 1 MiB — matches the fixture
+    private const long MaxFileBytes = 1024 * 1024;      // 1 MiB, matches the fixture
     private const long MaxBoardBytes = 5 * 1024 * 1024; // 5 MiB
 
     private readonly YanbanApiFactory _factory;
@@ -103,7 +102,7 @@ public class QuotaTests
         var client = NewClient();
         var (token, boardId, cardId) = await SeedCardAsync(client);
 
-        // Five tickets of 1 MiB fills a 5 MiB board exactly. They are reservations — no bytes are
+        // Five tickets of 1 MiB fills a 5 MiB board exactly. They are reservations: no bytes are
         // ever uploaded here, which is the point: the ticket alone consumes the quota.
         for (var i = 0; i < 5; i++)
             (await RequestUploadAsync(client, token, boardId, cardId, MaxFileBytes)).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -118,7 +117,7 @@ public class QuotaTests
     /// The race the board lock exists for.
     ///
     /// <para>The board has room for exactly one more 1 MiB file. Eight callers ask at once. Exactly
-    /// one may win — and without the <c>FOR UPDATE</c> on the board row, all eight read the same
+    /// one may win; without the <c>FOR UPDATE</c> on the board row, all eight read the same
     /// "4 MiB used" and all eight are told yes, putting the board 3 MiB over a limit it is supposed
     /// to be incapable of exceeding.</para>
     /// </summary>
@@ -146,7 +145,7 @@ public class QuotaTests
         accepted.ShouldBe(1, "the board had room for exactly one more file");
         refused.ShouldBe(7);
 
-        // And the board is exactly full — never over.
+        // And the board is exactly full, never over.
         var usage = await UsageAsync(client, token, boardId);
         usage.MaxBoardBytes.ShouldBe(MaxBoardBytes);
     }

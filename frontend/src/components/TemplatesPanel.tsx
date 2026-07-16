@@ -23,7 +23,7 @@ export function TemplatesPanel({ boardId, writable, onClose }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   // Empty until the user picks one; `listId` below resolves that to the shown default. Anything
-  // that acts on the selection must use `listId`, not this — they differ until the first change.
+  // that acts on the selection must use `listId`, not this: they differ until the first change.
   const [targetList, setTargetList] = useState("");
 
   const templates = useQuery({
@@ -56,7 +56,7 @@ export function TemplatesPanel({ boardId, writable, onClose }: Props) {
   });
 
   // A template is a blueprint stamped onto a new card, not a live link: editing it later never
-  // rewrites cards already made from it (ADR-12).
+  // rewrites cards already made from it.
   const apply = useMutation({
     mutationFn: (templateId: string) => createCardFromTemplate(boardId, listId, templateId),
     onSuccess: (card) =>

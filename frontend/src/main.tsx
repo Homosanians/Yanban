@@ -15,7 +15,7 @@ createRoot(document.getElementById("root")!).render(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            {/* Above the router so any screen can raise a toast — the board's drag/upload errors,
+            {/* Above the router so any screen can raise a toast: the board's drag/upload errors,
                 and the confirm-email banner's resend. */}
             <ToastProvider>
               <App />

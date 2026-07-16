@@ -37,3 +37,6 @@ backend/Yanban.API/wwwroot/
 # Playwright MCP scratch output
 .playwright-mcp/
 overflow-scrollbar.png
+
+# Windows crash dumps
+*.stackdump

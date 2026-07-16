@@ -21,14 +21,14 @@ using Yanban.Application.Lists;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// M7 — realtime board updates. Nothing is published from the request path: the tailer
-/// reads the activity log M5 already writes inside each mutation's transaction, and fans
-/// it out to the clients subscribed to that board.
+/// Realtime board updates. Nothing is published from the request path: the tailer reads the
+/// activity log written inside each mutation's transaction and fans it out to the clients
+/// subscribed to that board.
 ///
 /// The load-bearing test is <see cref="OutOfOrderCommit_IsStillDelivered"/>. A sequence
 /// number is taken at insert but the row only becomes visible at commit, so the two can
-/// disagree; a tailer that trusts sequence order alone does not skip such an event, it
-/// *loses* it. Set the grace window to zero and that test fails — which is the point.
+/// disagree; a tailer that trusts sequence order alone loses such an event rather than merely
+/// skipping it. Set the grace window to zero and that test fails.
 /// </summary>
 [Collection("api")]
 public class RealtimeHubTests
@@ -115,15 +115,15 @@ public class RealtimeHubTests
 
                 options.WebSocketFactory = async (context, ct) =>
                 {
-                    // TestServer has no socket to dial — it hands out an in-memory WebSocket
+                    // TestServer has no socket to dial; it hands out an in-memory WebSocket
                     // over http.
                     var uri = new UriBuilder(context.Uri) { Scheme = Uri.UriSchemeHttp };
 
                     // The .NET client would authenticate a WebSocket with an Authorization
-                    // header (and a custom factory bypasses that path anyway). A *browser*
+                    // header (and a custom factory bypasses that path anyway). A browser
                     // cannot set headers on a handshake, so the JS client appends the token
-                    // to the URL instead — which is the only reason Program.cs reads
-                    // ?access_token= at all. Do what the browser does, or this would test
+                    // to the URL instead, which is the only reason Program.cs reads
+                    // ?access_token= at all. Do what the browser does, or this tests
                     // a path no real client takes.
                     if (token is not null)
                         uri.Query = $"{uri.Query.TrimStart('?')}&access_token={Uri.EscapeDataString(token)}";
@@ -187,7 +187,7 @@ public class RealtimeHubTests
 
         await using var outsider = await ConnectAsync(outsiderToken);
 
-        // Authenticated, but the board's ABAC gate says no — the live feed is not a softer
+        // Authenticated, but the board's ABAC gate says no: the live feed is not a softer
         // way in than the REST API.
         var ex = await Should.ThrowAsync<HubException>(() => outsider.SubscribeAsync(board.Id));
         ex.Message.ShouldContain("permission");
@@ -215,7 +215,7 @@ public class RealtimeHubTests
         await CreateListAsync(client, token, other.Id);
         var sentinel = await CreateListAsync(client, token, watched.Id);
 
-        // Waiting on the sentinel (an event that *must* arrive, published after the one that
+        // Waiting on the sentinel (an event that must arrive, published after the one that
         // must not) beats sleeping and hoping: by the time it lands, the other board's event
         // has had its chance.
         await events.WaitForActivityAsync(a => a.EntityId == sentinel.Id, Patience);
@@ -231,7 +231,7 @@ public class RealtimeHubTests
         var board = await CreateBoardAsync(client, ownerToken);
         await AddMemberAsync(client, ownerToken, board.Id, memberEmail, "Editor");
 
-        // The member also watches a board of their own — the sentinel channel that proves
+        // The member also watches a board of their own, the sentinel channel that proves
         // the connection is still alive and listening after the eviction.
         var ownBoard = await CreateBoardAsync(client, memberToken);
 
@@ -264,9 +264,8 @@ public class RealtimeHubTests
         await using var events = await ConnectAsync(token);
         await events.SubscribeAsync(board.Id);
 
-        // Two writers, interleaved: both take a sequence number, then commit in the *other*
-        // order. This is the hazard ADR-8 flagged and it is not hypothetical — it is what
-        // concurrent transactions on an identity column do.
+        // Two writers, interleaved: both take a sequence number, then commit in the opposite
+        // order. Not hypothetical: it is what concurrent transactions on an identity column do.
         await using var slow = new NpgsqlConnection(_factory.ConnectionString);
         await using var quick = new NpgsqlConnection(_factory.ConnectionString);
         await slow.OpenAsync();
@@ -285,7 +284,7 @@ public class RealtimeHubTests
         await quickTx.CommitAsync();
         await events.WaitForActivityAsync(a => a.EntityId == quickEntity, Patience);
 
-        // Now the laggard lands *below* the cursor's high-water mark. A tailer that had
+        // Now the laggard lands below the cursor's high-water mark. A tailer that had
         // advanced past it would never look back, and this event would be gone for good.
         await slowTx.CommitAsync();
         var late = await events.WaitForActivityAsync(a => a.EntityId == slowEntity, Patience);
@@ -293,10 +292,10 @@ public class RealtimeHubTests
     }
 
     /// <summary>
-    /// Writes an activity row on a caller-controlled transaction — the only way to hold two
-    /// of them open at once and choose the commit order. The actor and board are real: the
-    /// tailer inner-joins Users, so a fabricated ActorId would be dropped and the test above
-    /// would pass for entirely the wrong reason.
+    /// Writes an activity row on a caller-controlled transaction: the only way to hold two open
+    /// at once and choose the commit order. The actor and board are real, because the tailer
+    /// inner-joins Users; a fabricated ActorId would be dropped and the test above would pass for
+    /// the wrong reason.
     /// </summary>
     private static async Task<long> InsertActivityAsync(
         NpgsqlConnection connection, NpgsqlTransaction transaction, Guid boardId, Guid actorId, Guid entityId)

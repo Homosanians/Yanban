@@ -15,9 +15,9 @@ using Yanban.Application.Lists;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// M4 — comments (per-comment ABAC: author-only edit, author-or-moderator delete, all
-/// gated on Write so an archived board stays read-only) and card assignment (assignee
-/// must be a board member).
+/// Comments (per-comment ABAC: author-only edit, author-or-moderator delete, all gated on
+/// Write so an archived board stays read-only) and card assignment (assignee must be a
+/// board member).
 /// </summary>
 [Collection("api")]
 public class CommentsAndAssigneeEndpointsTests
@@ -238,7 +238,7 @@ public class CommentsAndAssigneeEndpointsTests
         (await client.SendAsync(Authed(HttpMethod.Delete, $"/boards/{board.Id}/cards/{card.Id}/comments/{protectedComment.Id}", bToken)))
             .StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
-        // The owner (Admin => Manage) moderates it away.
+        // The owner (Admin, so Manage) moderates it away.
         (await client.SendAsync(Authed(HttpMethod.Delete, $"/boards/{board.Id}/cards/{card.Id}/comments/{protectedComment.Id}", ownerToken)))
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
@@ -257,7 +257,7 @@ public class CommentsAndAssigneeEndpointsTests
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         var basePath = $"/boards/{board.Id}/cards/{card.Id}/comments";
-        // All three mutations gate on Write, which an archived board denies (ABAC) — even
+        // All three mutations gate on Write, which an archived board denies (ABAC), even
         // for the author/owner, closing the "edit/delete slipped through Read" hole.
         (await client.SendAsync(Authed(HttpMethod.Post, basePath, token, new { body = "New" })))
             .StatusCode.ShouldBe(HttpStatusCode.Forbidden);

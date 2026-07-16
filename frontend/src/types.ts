@@ -6,7 +6,7 @@ export interface AccessTokenResponse {
   accessTokenExpiresAt: string;
 }
 
-/** `emailConfirmed` drives the nag banner. It is a prompt, never a gate — an unconfirmed
+/** `emailConfirmed` drives the nag banner. It is a prompt, never a gate: an unconfirmed
  *  account is fully usable. */
 export interface User {
   id: string;
@@ -23,7 +23,7 @@ export interface Board {
   ownerId: string;
   archived: boolean;
   createdAt: string;
-  /** The *calling* user's role on this board — what the UI gates on. */
+  /** The calling user's role on this board, which the UI gates on. */
   role: BoardRole;
 }
 
@@ -48,7 +48,7 @@ export interface Card {
   description: string | null;
   dueDate: string | null;
   rank: string;
-  /** Postgres xmin. Echoed back as If-Match to update the card — see ADR-13. */
+  /** Postgres xmin. Echoed back as If-Match to update the card. */
   version: number;
   assigneeId: string | null;
 }
@@ -105,7 +105,7 @@ export interface CardTemplate {
   createdAt: string;
 }
 
-/** What the server logs and what it pushes over the hub are the same shape (ADR-11). */
+/** What the server logs and what it pushes over the hub are the same shape. */
 export interface Activity {
   sequence: number;
   boardId: string;
@@ -115,7 +115,7 @@ export interface Activity {
   entityType: string;
   entityId: string;
   summary: string | null;
-  /** Set for renames, null for everything else — a creation has no "before". */
+  /** Set for renames, null for everything else: a creation has no "before". */
   oldValue: string | null;
   newValue: string | null;
   createdAt: string;
@@ -155,7 +155,7 @@ export interface ActivityFilters {
   entityType?: string;
 }
 
-/** Ascending order of power — for role pickers. */
+/** Ascending order of power, for role pickers. */
 export const BOARD_ROLES: BoardRole[] = ["Viewer", "Editor", "Admin"];
 
 // The UI hides what the API would 403 anyway. These are a courtesy, not a control:

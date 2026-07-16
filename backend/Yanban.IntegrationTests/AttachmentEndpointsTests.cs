@@ -17,11 +17,11 @@ using Yanban.Application.Lists;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// M6 — card attachments via presigned URLs. The API never touches the bytes: the
-/// round-trip test uploads straight to MinIO with the presigned PUT and downloads with
-/// the presigned GET, so it exercises the real object-storage path end-to-end. Those
-/// two calls use a plain HttpClient — the WebApplicationFactory client is an in-memory
-/// handler and cannot reach the external MinIO port.
+/// Card attachments via presigned URLs. The API never touches the bytes: the round-trip
+/// test uploads straight to MinIO with the presigned PUT and downloads with the presigned
+/// GET, exercising the real object-storage path end-to-end. Those two calls use a plain
+/// HttpClient; the WebApplicationFactory client is an in-memory handler and cannot reach
+/// the external MinIO port.
 /// </summary>
 [Collection("api")]
 public class AttachmentEndpointsTests
@@ -128,7 +128,7 @@ public class AttachmentEndpointsTests
         ticket.Method.ShouldBe("PUT");
         await PutBytesAsync(ticket.UploadUrl, bytes, contentType);
 
-        // 3) Confirm — the API HEADs the object and flips it to Ready.
+        // 3) Confirm: the API HEADs the object and flips it to Ready.
         var complete = await client.SendAsync(Authed(HttpMethod.Post,
             $"/boards/{boardId}/cards/{cardId}/attachments/{ticket.AttachmentId}/complete", token));
         complete.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -156,7 +156,7 @@ public class AttachmentEndpointsTests
             .Content.ReadFromJsonAsync<List<AttachmentDto>>(Json);
         afterDelete!.ShouldNotContain(a => a.Id == ticket.AttachmentId);
 
-        // Completion and deletion each left an audit trail entry (M5 wiring).
+        // Completion and deletion each leave an audit-trail entry.
         var feed = await (await client.SendAsync(Authed(HttpMethod.Get, $"/boards/{boardId}/activity", token)))
             .Content.ReadFromJsonAsync<List<ActivityDto>>(Json);
         feed!.ShouldContain(a => a.EntityType == "Attachment" && a.Action == "Created");
@@ -169,9 +169,9 @@ public class AttachmentEndpointsTests
         var client = NewClient();
         var (token, _, boardId, cardId) = await SeedCardAsync(client);
 
-        // Over the per-file cap, rejected before any URL is issued. 413 rather than 400 since M14:
-        // the request is well-formed and the caller is entitled to make it — the payload is simply
-        // too large, which is a thing a client can say something useful about.
+        // Over the per-file cap, rejected before any URL is issued. 413 rather than 400: the request
+        // is well-formed and the caller is entitled to make it, the payload is simply too large,
+        // which is a thing a client can say something useful about.
         var res = await client.SendAsync(Authed(HttpMethod.Post, $"/boards/{boardId}/cards/{cardId}/attachments",
             token, new { fileName = "big.bin", contentType = "application/octet-stream", sizeBytes = 20_000_000 }));
         res.StatusCode.ShouldBe(HttpStatusCode.RequestEntityTooLarge);
@@ -183,7 +183,7 @@ public class AttachmentEndpointsTests
         var client = NewClient();
         var (token, _, boardId, cardId) = await SeedCardAsync(client);
 
-        // Ticket issued, but the client never PUTs the file — completion must fail
+        // Ticket issued, but the client never PUTs the file, so completion must fail
         // because the object isn't there (the API trusts storage, not the client's word).
         var ticket = await RequestUploadAsync(client, token, boardId, cardId, "ghost.txt", "text/plain", 10);
         (await client.SendAsync(Authed(HttpMethod.Post,
@@ -237,7 +237,7 @@ public class AttachmentEndpointsTests
         var (outsiderToken, _, _) = await RegisterAsync(client);
         await AddMemberAsync(client, ownerToken, boardId, viewerEmail, "Viewer");
 
-        // A Viewer has Read but not Write — cannot request an upload.
+        // A Viewer has Read but not Write, so cannot request an upload.
         (await client.SendAsync(Authed(HttpMethod.Post, $"/boards/{boardId}/cards/{cardId}/attachments",
             viewerToken, new { fileName = "x.txt", contentType = "text/plain", sizeBytes = 5 })))
             .StatusCode.ShouldBe(HttpStatusCode.Forbidden);

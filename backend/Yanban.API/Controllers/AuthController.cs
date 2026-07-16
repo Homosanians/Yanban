@@ -62,7 +62,7 @@ public class AuthController : ControllerBase
 
     /// <summary>
     /// Anonymous by design: the link is followed from a mail client, which carries no session. The
-    /// token in the body *is* the credential.
+    /// token in the body is the credential.
     /// </summary>
     [HttpPost("confirm-email")]
     public async Task<IActionResult> ConfirmEmail(ConfirmEmailRequest request, CancellationToken ct)

@@ -20,13 +20,12 @@ using Yanban.Domain.Entities;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// M10 — the concurrent paths, attacked rather than assumed.
+/// Concurrency tests: the racy paths, attacked rather than assumed.
 ///
-/// Every test here fires real HTTP requests in parallel against the real API and a real
-/// Postgres. Each one was watched to <b>fail before the mechanism it guards existed</b>: a
-/// concurrency test that has never gone red proves nothing about what it claims to protect.
-/// (The ordering equivalent, <see cref="MoveEndpointsTests"/>'s ConcurrentMovesIntoSameSlot,
-/// sets the same bar for the target-list FOR UPDATE.)
+/// Every test fires real HTTP requests in parallel against the real API and Postgres, and each
+/// fails before the mechanism it guards exists. The ordering equivalent is
+/// <see cref="MoveEndpointsTests"/>'s ConcurrentMovesIntoSameSlot, covering the target-list
+/// FOR UPDATE.
 /// </summary>
 [Collection("api")]
 public class ConcurrencyTests
@@ -102,12 +101,9 @@ public class ConcurrencyTests
 
     /// <summary>
     /// A refresh token is single-use. Presenting the same one twice at the same instant must not
-    /// yield two live sessions — that is the exact shape of a stolen token being replayed while
-    /// the victim is still active, and it is what reuse detection exists to catch.
-    ///
-    /// Before the row lock, RefreshAsync read the token, checked RevokedAt, and revoked-and-reissued
-    /// across three awaits with nothing serializing them: every racer saw a live token, every racer
-    /// won, and the theft signal never fired.
+    /// yield two live sessions: that is a stolen token replayed while the victim is still active,
+    /// which is what reuse detection exists to catch. Without a row lock the read-check-revoke
+    /// spans three awaits with nothing serializing them, so every racer sees a live token and wins.
     /// </summary>
     [Fact]
     public async Task ConcurrentRefreshWithTheSameToken_LetsExactlyOneThrough()
@@ -125,13 +121,11 @@ public class ConcurrencyTests
     }
 
     /// <summary>
-    /// The strict half of the decision: a token presented twice is treated as theft, not as a
-    /// benign race. So the winner's *new* token is burned too — the whole family goes.
-    ///
-    /// The trade-off is real and deliberate (ADR-14): a client that double-submits a refresh gets
-    /// logged out everywhere. The alternative — shrugging at a concurrent double-use — means a
-    /// stolen token replayed alongside the legitimate one silently succeeds, which would make the
-    /// advertised reuse detection a fiction in the one case that matters.
+    /// A token presented twice is treated as theft, not a benign race, so the winner's new token
+    /// is burned too: the whole family goes. The trade-off is deliberate. A client that
+    /// double-submits a refresh gets logged out everywhere; the alternative lets a stolen token
+    /// replayed alongside the legitimate one silently succeed, making reuse detection a fiction in
+    /// the one case that matters.
     /// </summary>
     [Fact]
     public async Task ConcurrentRefresh_BurnsTheWholeFamily_NotJustTheLosers()
@@ -153,8 +147,8 @@ public class ConcurrencyTests
     }
 
     /// <summary>
-    /// `logout-all` must mean it. A refresh already in flight when the revoke lands must not be
-    /// able to commit a *new* refresh token afterwards and quietly outlive the logout.
+    /// `logout-all` must mean it. A refresh already in flight when the revoke lands must not commit
+    /// a new refresh token afterwards and quietly outlive the logout.
     /// </summary>
     [Fact]
     public async Task RefreshRacingLogoutAll_LeavesNoSurvivingSession()
@@ -185,16 +179,15 @@ public class ConcurrencyTests
 
     /// <summary>
     /// The invariant <c>BoardService</c> states outright: an assignee is always a board member.
-    /// A removal deletes the membership and sweeps the member off every card — but an assignment
-    /// running on another connection can check membership (still visible: the delete has not
-    /// committed), then write *after* the sweep has already passed. The card is left pointing at
-    /// someone who is no longer on the board.
+    /// A removal deletes the membership and sweeps the member off every card, but an assignment on
+    /// another connection can pass its membership check (the delete is uncommitted, still visible)
+    /// then write after the sweep has passed, leaving the card assigned to a non-member.
     ///
     /// <para>Racing two HTTP calls will not show this: the window is the few microseconds between
-    /// the removal's sweep and its commit, and the assignment almost always just finishes first.
-    /// So the interleaving is forced instead — the removal's steps are replayed on a held-open
-    /// transaction, which parks the assignment squarely in the window. (Same technique as the
-    /// out-of-order outbox test in <see cref="RealtimeHubTests"/>.)</para>
+    /// the removal's sweep and its commit, and the assignment almost always finishes first. So the
+    /// interleaving is forced: the removal's steps are replayed on a held-open transaction that
+    /// parks the assignment squarely in the window. Same technique as the out-of-order outbox test
+    /// in <see cref="RealtimeHubTests"/>.</para>
     /// </summary>
     [Fact]
     public async Task AssigningWhileTheMemberIsRemoved_NeverLeavesACardAssignedToANonMember()
@@ -217,8 +210,8 @@ public class ConcurrencyTests
         await conn.OpenAsync();
         await using var removal = await conn.BeginTransactionAsync();
 
-        // Replay exactly what RemoveMemberAsync does — take the board lock, delete the membership,
-        // sweep the assignments — and then stop, holding it all open.
+        // Replay exactly what RemoveMemberAsync does: take the board lock, delete the membership,
+        // sweep the assignments, then stop and hold it all open.
         await ExecAsync(conn, removal, "SELECT id FROM boards WHERE id = $1 FOR UPDATE", board.Id);
         await ExecAsync(conn, removal, "DELETE FROM board_members WHERE board_id = $1 AND user_id = $2",
             board.Id, memberId);
@@ -229,8 +222,8 @@ public class ConcurrencyTests
         var assignTask = client.SendAsync(Authed(HttpMethod.Put,
             $"/boards/{board.Id}/cards/{card.Id}/assignee", ownerToken, new { assigneeId = memberId }));
 
-        // Long enough for an *unguarded* assignment to sail through and commit. A guarded one is
-        // still blocked on the board lock at this point, and only proceeds once the removal commits.
+        // Long enough for an unguarded assignment to sail through and commit. A guarded one is
+        // still blocked on the board lock here, and only proceeds once the removal commits.
         await Task.Delay(1500);
         await removal.CommitAsync();
 
@@ -254,8 +247,8 @@ public class ConcurrencyTests
     // ---------------------------------------------------------------- optimistic concurrency
 
     /// <summary>
-    /// The optimistic-concurrency story the whole card UI leans on (ADR-13): N editors holding the
-    /// same ETag, exactly one wins, the rest are told to reload. Nobody's text is silently lost.
+    /// Optimistic concurrency the whole card UI leans on: N editors holding the same ETag, exactly
+    /// one wins, the rest are told to reload. Nobody's text is silently lost.
     /// </summary>
     [Fact]
     public async Task ConcurrentCardEditsWithTheSameETag_LetExactlyOneThrough()
@@ -271,7 +264,7 @@ public class ConcurrencyTests
         {
             var req = Authed(HttpMethod.Put, $"/boards/{board.Id}/cards/{card.Id}", token,
                 new { title = $"Edit {i}", description = (string?)null, dueDate = (DateTimeOffset?)null });
-            // Every editor holds the version they loaded — the same one.
+            // Every editor holds the version they loaded, the same one.
             req.Headers.TryAddWithoutValidation("If-Match", $"\"{card.Version}\"");
             return client.SendAsync(req);
         }));
@@ -283,14 +276,14 @@ public class ConcurrencyTests
     // ---------------------------------------------------------------- attachment completion
 
     /// <summary>
-    /// Completing an upload twice is legitimate — a client whose response was dropped will retry,
-    /// and <c>CompleteAsync</c> returns early if the attachment is already Ready. But that guard
-    /// is a check-then-write with nothing holding it together, and <c>attachments</c> carries no
-    /// xmin token, so nothing makes a second concurrent save lose: both callers read Pending, both
-    /// pass the size check, and <b>both write an audit row</b>. One upload, two "Attached …" events
-    /// — which the outbox tailer then fans out to every client watching the board (M7).
+    /// Completing an upload twice is legitimate: a client whose response was dropped retries, and
+    /// <c>CompleteAsync</c> returns early if the attachment is already Ready. But that guard is a
+    /// check-then-write with nothing holding it together, and <c>attachments</c> carries no xmin
+    /// token, so a second concurrent save does not lose: both callers read Pending, both pass the
+    /// size check, and both write an audit row. One upload, two "Attached" events, which the outbox
+    /// tailer fans out to every client watching the board.
     ///
-    /// <para>Idempotent must mean idempotent in its *effects*, not just its status code.</para>
+    /// <para>Idempotent must mean idempotent in its effects, not just its status code.</para>
     /// </summary>
     [Fact]
     public async Task ConcurrentCompleteOnOneAttachment_RecordsASingleActivityRow()
@@ -321,8 +314,8 @@ public class ConcurrencyTests
             client.SendAsync(Authed(HttpMethod.Post,
                 $"/boards/{board.Id}/cards/{card.Id}/attachments/{ticket.AttachmentId}/complete", token))));
 
-        // Every caller is told the truth — the attachment is ready. Punishing the retry would be
-        // the wrong fix; the duplicate *audit row* is the bug.
+        // Every caller is told the truth: the attachment is ready. Punishing the retry would be
+        // the wrong fix; the duplicate audit row is the bug.
         responses.ShouldAllBe(r => r.StatusCode == HttpStatusCode.OK);
 
         var feed = await client.SendAsync(Authed(HttpMethod.Get, $"/boards/{board.Id}/activity", token));

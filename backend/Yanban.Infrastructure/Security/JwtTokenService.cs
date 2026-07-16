@@ -23,7 +23,7 @@ public class JwtTokenService : IJwtTokenService
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.Secret));
 
         // Claims are intentionally identity-only: sub, tv, jti (+ display name).
-        // Per-board roles are NOT embedded here -- they change too often and are
+        // Per-board roles are NOT embedded here; they change too often and are
         // always resolved against current state at authorization time.
         var descriptor = new SecurityTokenDescriptor
         {

@@ -14,7 +14,7 @@ namespace Yanban.Infrastructure.Auth;
 
 public class AuthService : IAuthService
 {
-    /// <summary>A confirmation link is a convenience, not a session — it does not need to live long.</summary>
+    /// <summary>A confirmation link is a convenience, not a session, so it does not need to live long.</summary>
     private const int ConfirmationTokenDays = 7;
 
     private readonly YanbanDbContext _db;
@@ -60,7 +60,7 @@ public class AuthService : IAuthService
         };
         _db.Users.Add(user);
 
-        // The confirmation mail is queued into the *same* SaveChanges that creates the account:
+        // The confirmation mail is queued into the same SaveChanges that creates the account:
         // there is no window in which a user exists with no way to confirm, and none in which we
         // have queued a mail for a registration that then failed.
         await EnqueueConfirmationAsync(user, ct);
@@ -97,7 +97,7 @@ public class AuthService : IAuthService
 
     /// <summary>
     /// Redeems a confirmation token. Single-use and idempotent-ish: a second redemption of the same
-    /// token fails, but confirming an already-confirmed account with a *fresh* token is harmless.
+    /// token fails, but confirming an already-confirmed account with a fresh token is harmless.
     /// </summary>
     public async Task ConfirmEmailAsync(string token, CancellationToken ct)
     {
@@ -147,15 +147,14 @@ public class AuthService : IAuthService
     /// <summary>
     /// Rotates a refresh token: the presented one is spent and a successor is issued.
     ///
-    /// <para>Serialized on the <b>user row</b> (ADR-14). Rotation is read-then-write across
-    /// several statements — check the token is live, revoke it, mint its successor — and with
-    /// nothing holding those together, concurrent callers presenting the <i>same</i> token each
-    /// saw it live and each won: one token minted several live families, and reuse detection
-    /// never fired. Measured, not theorized: 4 of 6 racers got a 200.</para>
+    /// <para>Serialized on the user row. Rotation is read-then-write across several statements
+    /// (check the token is live, revoke it, mint its successor), and with nothing holding those
+    /// together, concurrent callers presenting the same token each see it live and each win: one
+    /// token mints several live families, and reuse detection never fires.</para>
     ///
     /// <para>The lock is on the user, not the token, because <see cref="LogoutAllAsync"/> mutates
     /// the same session state and takes the same lock first. Locking the token row instead would
-    /// have the two paths grabbing the user and token rows in opposite orders — a deadlock.</para>
+    /// have the two paths grabbing the user and token rows in opposite orders, a deadlock.</para>
     /// </summary>
     public async Task<AuthResponse> RefreshAsync(string refreshToken, CancellationToken ct)
     {
@@ -176,8 +175,7 @@ public class AuthService : IAuthService
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         // `users` has no concurrency token, so SELECT * is safe for FromSql, and ToListAsync
-        // runs the statement verbatim so FOR UPDATE stays at the top level (same idiom as the
-        // target-list lock in CardService.MoveAsync).
+        // runs the statement verbatim so FOR UPDATE stays at the top level.
         var locked = await _db.Users
             .FromSql($"SELECT * FROM users WHERE id = {ownerId} FOR UPDATE")
             .ToListAsync(ct);
@@ -186,15 +184,15 @@ public class AuthService : IAuthService
 
         var user = locked[0];
 
-        // Read the token *after* the lock: a caller that queued behind another rotation wakes up
+        // Read the token after the lock: a caller that queued behind another rotation wakes up
         // and sees what actually committed, not the snapshot it arrived with.
         var existing = await _db.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == hash, ct)
             ?? throw new UnauthorizedAppException("Invalid refresh token.");
 
-        // Reuse detection: a revoked token being presented signals theft. This is now also where
-        // the loser of a concurrent rotation lands — it presented a token that, by the time it
-        // held the lock, had already been spent. Strict by choice: the family burns, including
-        // the successor the winner was just handed (ADR-14).
+        // Reuse detection: a revoked token being presented signals theft. This is also where the
+        // loser of a concurrent rotation lands: it presented a token that, by the time it held the
+        // lock, had already been spent. Strict by choice: the family burns, including the successor
+        // the winner was just handed.
         if (existing.RevokedAt is not null)
         {
             await RevokeAllRefreshTokensAsync(existing.UserId, ct);
@@ -234,12 +232,12 @@ public class AuthService : IAuthService
     /// Kills every session: bumps TokenVersion (which invalidates outstanding access tokens on
     /// their next request) and revokes every live refresh token.
     ///
-    /// <para>Takes the <b>same user-row lock</b> as <see cref="RefreshAsync"/>, and for the same
-    /// reason. Without it, a rotation already in flight could commit its brand-new refresh token
-    /// *after* the revoke-all had swept the table — a session that quietly survives "log out
-    /// everywhere". With the lock, the two orderings are the only two possible, and both are
-    /// safe: the rotation either finishes first (and its successor is then revoked) or wakes to
-    /// find its token already dead.</para>
+    /// <para>Takes the same user-row lock as <see cref="RefreshAsync"/>, and for the same reason.
+    /// Without it, a rotation already in flight could commit its brand-new refresh token after the
+    /// revoke-all had swept the table, a session that quietly survives "log out everywhere". With
+    /// the lock, the two orderings are the only two possible, and both are safe: the rotation
+    /// either finishes first (and its successor is then revoked) or wakes to find its token already
+    /// dead.</para>
     /// </summary>
     public async Task LogoutAllAsync(Guid userId, CancellationToken ct)
     {

@@ -165,7 +165,7 @@ public class BoardsEndpointsTests
         (await client.SendAsync(Authed(HttpMethod.Put, $"/boards/{board.Id}/members/{memberId}", ownerToken,
             new { role = "Admin" }))).StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        // Same member now succeeds — role change takes effect immediately.
+        // Same member now succeeds; role change takes effect immediately.
         (await AddMemberAsync(client, memberToken, board.Id, thirdEmail, BoardRole.Viewer))
             .StatusCode.ShouldBe(HttpStatusCode.Created);
     }
@@ -238,7 +238,7 @@ public class BoardsEndpointsTests
 
     /// <summary>
     /// The optional starter template. Seeding happens in the same SaveChanges as the board and its
-    /// owner membership, so there is no interleaving that can leave a board half-seeded — the four
+    /// owner membership, so there is no interleaving that can leave a board half-seeded: the four
     /// lists either all exist or the board does not.
     /// </summary>
     [Fact]
@@ -266,8 +266,8 @@ public class BoardsEndpointsTests
         var client = NewClient();
         var (token, _, _) = await RegisterAsync(client);
 
-        // The flag defaults to false, so the plain create path — the one every other test and
-        // client uses — must keep producing an empty board.
+        // The flag defaults to false, so the plain create path (the one every other test and
+        // client uses) must keep producing an empty board.
         var board = await CreateBoardAsync(client, token);
 
         var lists = await (await client.SendAsync(Authed(HttpMethod.Get, $"/boards/{board.Id}/lists", token)))

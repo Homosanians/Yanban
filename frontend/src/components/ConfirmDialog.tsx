@@ -11,7 +11,7 @@ interface Props {
 }
 
 /**
- * The one gate in front of everything irreversible. Nothing here is destructive by itself —
+ * The single gate in front of everything irreversible. Nothing here is destructive by itself:
  * it renders a question and hands back an answer.
  */
 export function ConfirmDialog({

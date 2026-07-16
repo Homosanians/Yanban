@@ -46,7 +46,7 @@ public abstract class BoardScopedController : ControllerBase
     }
 
     /// <summary>
-    /// Evaluates a permission on an already-loaded board without throwing — for
+    /// Evaluates a permission on an already-loaded board without throwing, for
     /// actions that branch on a permission (e.g. "author or moderator") rather than
     /// hard-requiring it.
     /// </summary>

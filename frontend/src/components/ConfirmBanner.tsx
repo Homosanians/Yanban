@@ -4,7 +4,7 @@ import { resendConfirmation } from "../auth/authApi";
 import { useAuth } from "../auth/useAuth";
 
 /**
- * The nag. Confirming is not a gate — the app underneath works perfectly well unconfirmed — so this
+ * The nag. Confirming is not a gate (the app underneath works perfectly well unconfirmed), so this
  * is a strip you can dismiss, not a wall you have to climb.
  *
  * Dismissal is per-session state and deliberately not persisted: the reminder should come back

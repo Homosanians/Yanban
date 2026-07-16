@@ -6,22 +6,22 @@ namespace Yanban.Application.Realtime;
 /// The outbox tailer's position in the activity log, and the reason the tailer is not
 /// simply <c>WHERE sequence &gt; cursor</c>.
 ///
-/// <para>An activity row takes its <c>Sequence</c> when it is <b>inserted</b> but only
-/// becomes visible when its transaction <b>commits</b>. Two concurrent writers can take
-/// 100 and 101 with 101 committing first, so a naive tailer would read 101, move its
-/// cursor past 100, and lose event 100 when it lands — a lost event, not a benign gap.</para>
+/// <para>An activity row takes its <c>Sequence</c> when it is inserted but only becomes
+/// visible when its transaction commits. Two concurrent writers can take 100 and 101 with
+/// 101 committing first, so a naive tailer would read 101, move its cursor past 100, and
+/// lose event 100 when it lands.</para>
 ///
-/// <para>So the cursor lags deliberately. Rows are <i>dispatched</i> the moment they are
-/// seen (no added latency), but the cursor only advances past rows older than a grace
-/// window — which means an in-flight lower sequence is still inside the re-scanned range
-/// when it finally commits. Re-scanning re-reads already-dispatched rows, so this class
-/// also remembers what it has sent and de-duplicates.</para>
+/// <para>So the cursor lags deliberately. Rows are dispatched the moment they are seen
+/// (no added latency), but the cursor only advances past rows older than a grace window,
+/// which keeps an in-flight lower sequence inside the re-scanned range until it commits.
+/// Re-scanning re-reads already-dispatched rows, so this class remembers what it has sent
+/// and de-duplicates.</para>
 ///
-/// <para><b>The contract, stated plainly:</b> no event is lost provided the transaction
-/// that wrote it commits within <c>grace</c> of the <c>Record()</c> call that stamped its
-/// CreatedAt (plus clock skew, if several instances tail the same log). Yanban's writes
-/// are a single <c>SaveChanges</c>, so a 5s window is a wide margin — but it is an
-/// assumption, not a proof, and it is the one this design rests on.</para>
+/// <para>No event is lost provided the transaction that wrote it commits within
+/// <c>grace</c> of the <c>Record()</c> call that stamped its CreatedAt (plus clock skew,
+/// if several instances tail the same log). Yanban's writes are a single
+/// <c>SaveChanges</c>, so a 5s window is a wide margin, but it is an assumption this
+/// design rests on.</para>
 ///
 /// <para>Not thread-safe: a single tailer loop owns it.</para>
 /// </summary>
@@ -47,7 +47,7 @@ public sealed class OutboxCursor
     {
         var toDispatch = new List<ActivityDto>();
         foreach (var row in visible)
-            if (_dispatched.Add(row.Sequence)) // false => already sent on an earlier pass
+            if (_dispatched.Add(row.Sequence)) // false means already sent on an earlier pass
                 toDispatch.Add(row);
 
         // Advance over the leading run of rows that have aged out of the window, and stop

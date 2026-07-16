@@ -16,9 +16,9 @@ using Yanban.Application.Templates;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// Full-text search (ADR-12). Everything is asserted through the HTTP API: the tsvector is a
-/// storage detail, and a test that reached for it would be pinning the implementation rather
-/// than the behaviour clients actually get.
+/// Full-text search. Everything is asserted through the HTTP API: the tsvector is a storage
+/// detail, and a test that reached for it would be pinning the implementation rather than the
+/// behaviour clients actually get.
 /// </summary>
 [Collection("api")]
 public class CardSearchTests
@@ -88,7 +88,7 @@ public class CardSearchTests
 
     /// <summary>
     /// The test that proves the dictionary choice is real. Stock Postgres 'russian' stems ASCII
-    /// words with english_stem and Cyrillic with russian_stem, so *one* column handles both.
+    /// words with english_stem and Cyrillic with russian_stem, so one column handles both.
     /// Under a 'simple' config neither of these searches would match anything.
     /// </summary>
     [Fact]

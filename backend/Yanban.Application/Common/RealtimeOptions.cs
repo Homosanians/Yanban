@@ -11,9 +11,8 @@ public class RealtimeOptions
     /// <summary>
     /// How long a row stays inside the tailer's re-scan window. The cursor is never
     /// advanced past a row younger than this, so a transaction that takes a sequence
-    /// number and commits later (out of sequence order) is still picked up. The
-    /// guarantee it buys: no event is lost as long as the transaction that wrote it
-    /// commits within this window. See ADR-11.
+    /// number and commits later (out of sequence order) is still picked up. No event is
+    /// lost as long as the transaction that wrote it commits within this window.
     /// </summary>
     public int GraceSeconds { get; set; } = 5;
 

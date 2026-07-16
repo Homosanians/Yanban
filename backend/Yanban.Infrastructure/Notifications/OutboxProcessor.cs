@@ -9,25 +9,23 @@ using Yanban.Infrastructure.Persistence;
 namespace Yanban.Infrastructure.Notifications;
 
 /// <summary>
-/// Drains the notification outbox. One pass = claim a batch, send it, record the outcome.
+/// Drains the notification outbox. One pass claims a batch, sends it, and records the outcome.
 ///
-/// <para><b>Why there is no cursor here.</b> The realtime tailer needs a grace window because its
-/// high-water mark orders by <c>sequence</c> — an identity value assigned at INSERT but visible
-/// only at COMMIT, so a row can commit *behind* the cursor and be skipped forever. This claims by
-/// <c>status</c> instead. There is no high-water mark to fall behind: every pass re-asks "what is
-/// still Pending?", so a late-committing row is picked up the moment it becomes visible. The hazard
-/// belongs to the cursor, not to the log, and importing the cursor would import the hazard.</para>
+/// <para>Why there is no cursor here. The realtime tailer needs a grace window because its
+/// high-water mark orders by <c>sequence</c>, an identity value assigned at INSERT but visible
+/// only at COMMIT, so a row can commit behind the cursor and be skipped forever. This claims by
+/// <c>status</c> instead. There is no high-water mark to fall behind: every pass re-asks which
+/// rows are still Pending, so a late-committing row is picked up the moment it becomes visible.</para>
 ///
-/// <para><b>SKIP LOCKED is what makes this safe to run more than once.</b> The claim locks the rows
-/// it takes and steps over rows another worker already holds, so N workers partition the queue
+/// <para>SKIP LOCKED is what makes this safe to run more than once. The claim locks the rows it
+/// takes and steps over rows another worker already holds, so N workers partition the queue
 /// instead of racing for it. (The SignalR tailer is the opposite: every instance runs one, because
 /// duplicate pushes are harmless. Duplicate emails are not.)</para>
 ///
-/// <para><b>Delivery is at-least-once, and honestly so.</b> The row lock is held across the SMTP
-/// send, so a crash after the relay accepts but before the transaction commits leaves the row
-/// Pending and it will be sent again. The alternative — mark Sent first — turns a crash into a mail
-/// that is never sent at all. Given the choice between a duplicate and a silence, a notification
-/// system should pick the duplicate.</para>
+/// <para>Delivery is at-least-once. The row lock is held across the SMTP send, so a crash after
+/// the relay accepts but before the transaction commits leaves the row Pending and it will be
+/// sent again. Marking Sent first would instead turn a crash into a mail that is never sent at
+/// all; a duplicate email is preferable to a dropped one.</para>
 /// </summary>
 public class OutboxProcessor
 {
@@ -56,7 +54,7 @@ public class OutboxProcessor
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         // `outbox_messages` has no concurrency token, so SELECT * is safe for FromSql, and
-        // ToListAsync runs the statement verbatim — so FOR UPDATE SKIP LOCKED stays at the top
+        // ToListAsync runs the statement verbatim, so FOR UPDATE SKIP LOCKED stays at the top
         // level rather than being wrapped into a subquery, where it would not apply.
         var batch = await _db.OutboxMessages
             .FromSql($"""

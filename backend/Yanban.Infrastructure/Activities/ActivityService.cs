@@ -19,9 +19,9 @@ public class ActivityService : IActivityService
     {
         var rows = _db.ActivityLogs.Where(a => a.BoardId == boardId);
 
-        // Keyset paging: "older than the last row I saw" beats OFFSET, which re-scans
-        // every skipped row and can drift as new activity arrives at the head. It composes with
-        // every filter below — paging deeper into a search works exactly like paging the feed.
+        // Keyset paging: "older than the last row I saw" beats OFFSET, which re-scans every
+        // skipped row and can drift as new activity arrives at the head. Composes with every
+        // filter below, so paging deeper into a search works like paging the feed.
         if (query.BeforeSequence is long cursor)
             rows = rows.Where(a => a.Sequence < cursor);
 
@@ -53,13 +53,13 @@ public class ActivityService : IActivityService
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
-            // websearch_to_tsquery, never to_tsquery — it parses whatever was typed and cannot
-            // fail, where to_tsquery raises a syntax error on input as ordinary as a trailing "&"
-            // and turns a search box into a 500 (ADR-12).
+            // websearch_to_tsquery, never to_tsquery: it parses whatever was typed and cannot
+            // fail. to_tsquery raises a syntax error on input as ordinary as a trailing "&",
+            // which would surface as a 500 from the search box.
             //
             // The call must stay inside the expression tree: EF.Functions methods are translation
             // stubs with no CLR implementation, so hoisting one into a local makes EF try to
-            // evaluate it client-side, and it throws instead of translating.
+            // evaluate it client-side, where it throws instead of translating.
             var search = query.Search;
             rows = rows.Where(a =>
                 EF.Property<NpgsqlTsVector>(a, ActivityLogConfiguration.SearchVectorProperty)
@@ -70,9 +70,8 @@ public class ActivityService : IActivityService
         // join is safe because users are never hard-deleted; were that to change, this would need a
         // left join to keep orphaned audit rows.
         //
-        // Ordered by Sequence, not by ts_rank: an audit log is a chronology. "Most relevant" is the
-        // wrong answer to "what happened to this board, in order" — the search narrows the feed, it
-        // does not re-sort it.
+        // Ordered by Sequence, not by ts_rank: an audit log is a chronology. The search narrows
+        // the feed, it does not re-sort it.
         var page = await rows
             .Join(_db.Users, a => a.ActorId, u => u.Id, (a, u) => new { a, u.DisplayName })
             .OrderByDescending(x => x.a.Sequence)

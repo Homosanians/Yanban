@@ -18,15 +18,15 @@ public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage
         b.Property(x => x.Payload).HasColumnType("jsonb");
         b.Property(x => x.LastError).HasMaxLength(1000);
 
-        // The claim query's only access path, and the reason it stays cheap as the table grows:
-        // a partial index over the *pending* rows alone. Sent rows are history — millions of them
-        // must not make "what is left to send?" any slower.
+        // The claim query's only access path. A partial index over just the pending rows keeps it
+        // cheap as the table grows: sent rows are history (potentially millions of them) and must
+        // not make "what is left to send?" any slower.
         b.HasIndex(x => new { x.Status, x.NextAttemptAt })
             .HasFilter($"status = '{nameof(OutboxStatus.Pending)}'")
             .HasDatabaseName("ix_outbox_messages_pending");
 
-        // RecipientUserId and BoardId are plain columns, not foreign keys — deliberately, like
-        // ActivityLog's. A message about a board is worth keeping after the board is gone, and a
-        // cascade would delete the very evidence that we mailed someone.
+        // RecipientUserId and BoardId are plain columns, not foreign keys. That is deliberate, like
+        // ActivityLog's: a message about a board is worth keeping after the board is gone, and a
+        // cascade would delete the record that we mailed someone.
     }
 }

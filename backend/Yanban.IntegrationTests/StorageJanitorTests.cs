@@ -24,11 +24,11 @@ using Yanban.Infrastructure.Storage;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// M15 — the janitor that drains the object-deletion queue to storage.
+/// The janitor that drains the object-deletion queue to storage.
 ///
-/// <para>This is a <b>separate</b> test from the trigger tests, deliberately. The worker is not
-/// hosted by <see cref="YanbanApiFactory"/>, so there is no in-process path from "delete the row"
-/// to "object gone from MinIO" — pretending otherwise would be a vacuous test. Instead it builds a
+/// <para>This is a separate test from the trigger tests, deliberately. The worker is not hosted
+/// by <see cref="YanbanApiFactory"/>, so there is no in-process path from "delete the row" to
+/// "object gone from MinIO"; pretending otherwise would be a vacuous test. Instead it builds a
 /// <see cref="StorageJanitor"/> against the same Testcontainers Postgres + MinIO the API uses, and
 /// drives it directly. The end-to-end claim is: a real object, uploaded to real storage, is
 /// actually deleted from it.</para>
@@ -119,7 +119,7 @@ public class StorageJanitorTests
             (await storage.TryGetObjectSizeAsync(storageKey, CancellationToken.None)).ShouldBe(bytes.Length);
         }
 
-        // Delete the attachment via the API — no S3 call happens here anymore (ADR-20); the trigger
+        // Delete the attachment via the API; no S3 call happens here anymore, the trigger
         // just enqueues the object.
         (await client.SendAsync(Authed(HttpMethod.Delete,
             $"/boards/{board.Id}/cards/{card.Id}/attachments/{ticket.AttachmentId}", token)))
@@ -150,7 +150,7 @@ public class StorageJanitorTests
     }
 
     /// <summary>
-    /// Deleting an object that is already gone is a no-op — which is what makes at-least-once safe.
+    /// Deleting an object that is already gone is a no-op, which is what makes at-least-once safe.
     /// A janitor row whose object never existed still gets marked done rather than retried forever.
     /// </summary>
     [Fact]

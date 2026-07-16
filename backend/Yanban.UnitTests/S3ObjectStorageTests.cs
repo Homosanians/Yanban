@@ -6,10 +6,9 @@ using Yanban.Infrastructure.Storage;
 namespace Yanban.UnitTests;
 
 /// <summary>
-/// The split-horizon fix (ADR-10): the API reaches storage at one host and the browser at
-/// another, so a presigned URL must be signed for the host the *browser* uses. None of this
-/// touches the network — presigning is a local signature computation, which is exactly why a
-/// client can sign for an endpoint it could never call itself.
+/// The API reaches storage at one host and the browser at another, so a presigned URL must
+/// be signed for the host the browser uses. Presigning is a local signature computation with
+/// no network call, which is why a client can sign for an endpoint it could never reach itself.
 /// </summary>
 public class S3ObjectStorageTests
 {
@@ -30,8 +29,8 @@ public class S3ObjectStorageTests
             Bucket = "yanban-attachments"
         };
 
-        // Through the same factory the API uses, so the signing configuration under test is
-        // the one that actually ships, not a copy of it that could drift.
+        // Go through the same factory the API uses, so the signing config under test is
+        // the one that actually ships, not a copy that could drift.
         var control = S3ClientFactory.Create(options.Endpoint, options);
         var presign = string.IsNullOrWhiteSpace(options.PublicEndpoint)
             ? control
@@ -51,7 +50,7 @@ public class S3ObjectStorageTests
         uri.Host.ShouldBe("localhost", "a browser cannot resolve the host the API reaches storage on");
         uri.Port.ShouldBe(9000);
         // Still signed. The host is part of the signature, so this cannot be a post-hoc string
-        // rewrite of the internal URL — it has to have been signed for the public host.
+        // rewrite of the internal URL; it has to have been signed for the public host.
         uri.Query.ShouldContain("X-Amz-Signature");
     }
 
@@ -81,7 +80,7 @@ public class S3ObjectStorageTests
     public void TheUrlScheme_FollowsThePresignEndpoint_NotTheInternalOne()
     {
         // The SDK emits https regardless, and AlignScheme corrects it. After the client split
-        // the scheme it corrects *to* must come from the presign endpoint: keying it off the
+        // the scheme it corrects to must come from the presign endpoint: keying it off the
         // internal one leaves this URL https, and the browser would then try TLS against a
         // plaintext MinIO. Both endpoints are http in dev, so only a split like this catches it.
         var storage = Create("https://minio:9000", "http://localhost:9000");

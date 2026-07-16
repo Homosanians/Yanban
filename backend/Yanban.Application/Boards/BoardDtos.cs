@@ -5,11 +5,11 @@ namespace Yanban.Application.Boards;
 
 /// <summary>
 /// <paramref name="Template"/> names a starter layout (see <c>BoardTemplateOptions</c>): "simple",
-/// "dev-flow", or null for an empty board. Both default to their empty state, so an existing caller
-/// that sends neither still gets a blank board.
+/// "dev-flow", or null for an empty board. Both default to their empty state, so a caller that
+/// sends neither gets a blank board.
 ///
-/// <para><paramref name="SeedDefaultLists"/> is the M11 boolean, kept so old clients keep working:
-/// true means "the simple template". <paramref name="Template"/> wins if both are sent.</para>
+/// <para><paramref name="SeedDefaultLists"/> is the legacy boolean, kept for backward
+/// compatibility: true means the simple template. <paramref name="Template"/> wins if both are sent.</para>
 /// </summary>
 public record CreateBoardRequest(
     [Required, MaxLength(200)] string Name,

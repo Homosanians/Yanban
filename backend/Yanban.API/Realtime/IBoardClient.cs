@@ -10,10 +10,10 @@ namespace Yanban.API.Realtime;
 public interface IBoardClient
 {
     /// <summary>
-    /// Something changed on a board you are watching. This is a <b>notification, not a
-    /// diff</b>: it names the entity that changed and says nothing about its new state.
-    /// Clients react by invalidating and refetching, which is exactly what makes
-    /// at-least-once, possibly out-of-order delivery harmless (ADR-11).
+    /// Something changed on a board you are watching. This is a notification, not a diff:
+    /// it names the entity that changed and says nothing about its new state. Clients react
+    /// by invalidating and refetching, which makes at-least-once, possibly out-of-order
+    /// delivery harmless.
     /// </summary>
     Task ActivityOccurred(ActivityDto activity);
 

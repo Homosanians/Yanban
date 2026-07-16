@@ -33,12 +33,11 @@ public class CardService : ICardService
     }
 
     /// <summary>
-    /// Queues one card notification, with everything the worker needs to render it baked in — the
-    /// worker must never come back and ask what the card is called *now*, because by then "now" is
-    /// after the fact.
+    /// Queues a card notification with everything the worker needs to render it. The worker must not
+    /// re-read the card later, since the title may have changed by then.
     ///
-    /// <para>Like every enqueue, this only <c>Add</c>s: the caller's <c>SaveChanges</c> is what
-    /// makes it real.</para>
+    /// <para>Like every enqueue, this only calls <c>Add</c>; the caller's <c>SaveChanges</c> is what
+    /// commits it.</para>
     /// </summary>
     private async Task NotifyAsync(
         NotificationType type,
@@ -97,13 +96,13 @@ public class CardService : ICardService
             .FirstOrDefaultAsync(t => t.Id == request.TemplateId && t.BoardId == boardId, ct)
             ?? throw new NotFoundAppException("Template not found.");
 
-        // The template's text is copied onto the card here and never consulted again — cards
-        // do not track the template they came from, so editing a template never rewrites history.
+        // Copy the template's text onto the card now. Cards don't track which template they came
+        // from, so editing a template later won't rewrite existing cards.
         var title = string.IsNullOrWhiteSpace(request.Title) ? template.Title : request.Title;
         return await AppendCardAsync(boardId, listId, userId, title, template.Description, dueDate: null, ct);
     }
 
-    /// <summary>Adds a card at the end of a list. The one place a card comes into existence.</summary>
+    /// <summary>Adds a card at the end of a list.</summary>
     private async Task<CardDto> AppendCardAsync(
         Guid boardId, Guid listId, Guid userId, string title, string? description, DateTimeOffset? dueDate, CancellationToken ct)
     {
@@ -137,15 +136,15 @@ public class CardService : ICardService
     {
         var card = await FindCardAsync(boardId, cardId, ct);
 
-        // Crux of the optimistic-concurrency check: force the UPDATE to target the
-        // client's version (UPDATE ... WHERE xmin = expectedVersion). The freshly
-        // loaded OriginalValue is the *current* xmin, so without this override EF
-        // would compare the row against itself and the precondition could never fail.
+        // Force the UPDATE to target the client's version (UPDATE ... WHERE xmin =
+        // expectedVersion). The freshly loaded OriginalValue holds the current xmin,
+        // so without this override EF compares the row against itself and the
+        // precondition can never fail.
         _db.Entry(card).Property(XminProperty).OriginalValue = expectedVersion;
 
-        // Captured before the overwrite. Only recorded if the title actually moved: an edit that
-        // only touches the description is not a rename, and logging "Alpha -> Alpha" would be noise
-        // in the one place that exists to be read carefully.
+        // Capture the old title before overwriting. Only record it when the title actually
+        // changed; an edit that touches only the description isn't a rename, and logging an
+        // unchanged title just adds noise to the audit log.
         var oldTitle = card.Title;
         var newTitle = request.Title.Trim();
         var renamed = !string.Equals(oldTitle, newTitle, StringComparison.Ordinal);
@@ -154,8 +153,8 @@ public class CardService : ICardService
         card.Description = request.Description;
         card.DueDate = request.DueDate;
 
-        // Recorded into the same SaveChanges, so if the xmin precondition fails below
-        // the audit row is discarded with the update — a rejected edit leaves no trace.
+        // Recorded in the same SaveChanges, so if the xmin precondition fails below,
+        // the audit row is rolled back with the update. A rejected edit leaves no trace.
         _activity.Record(boardId, ActivityAction.Updated, ActivityEntityTypes.Card, cardId,
             $"Updated \"{card.Title}\"",
             oldValue: renamed ? oldTitle : null,
@@ -177,22 +176,22 @@ public class CardService : ICardService
     {
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
-        // Lock the target list row — the ordering mutex. Every mover into this list
-        // takes this lock first, so concurrent moves serialize and can't compute the
-        // same midpoint. Locking only the target is enough: moving a card *out* of its
-        // source leaves the source's remaining ranks untouched. The `AND board_id` both
-        // scopes the move to this board (the target list id is client-supplied) and
-        // validates it in the same round-trip. `lists` has no concurrency token, so
-        // SELECT * is safe for FromSql; ToListAsync runs the statement verbatim (no
-        // subquery wrapping) so FOR UPDATE stays at the top level.
+        // Lock the target list row; this is the ordering mutex. Every mover into this
+        // list takes the lock first, so concurrent moves serialize and can't compute
+        // the same midpoint. Locking only the target is enough, since moving a card out
+        // of its source leaves the source's ranks untouched. The AND board_id scopes the
+        // move to this board (the target list id is client-supplied) and validates it in
+        // the same round-trip. lists has no concurrency token, so SELECT * is safe for
+        // FromSql, and ToListAsync runs the statement verbatim (no subquery wrapping) so
+        // FOR UPDATE stays at the top level.
         var locked = await _db.Lists
             .FromSql($"SELECT * FROM lists WHERE id = {request.TargetListId} AND board_id = {boardId} FOR UPDATE")
             .ToListAsync(ct);
         if (locked.Count == 0)
             throw new NotFoundAppException("List not found.");
 
-        // Decision reads happen *after* the lock, so a mover that was blocked wakes up
-        // and recomputes against the now-current state rather than a stale snapshot.
+        // Read the state after taking the lock, so a mover that was blocked recomputes
+        // against current state rather than a stale snapshot.
         var card = await FindCardAsync(boardId, cardId, ct);
 
         var others = await _db.Cards
@@ -211,9 +210,9 @@ public class CardService : ICardService
         }
         else
         {
-            // The neighbours are adjacent with no encodable rank between them (rare —
-            // Gap allows ~16 bisections at one slot). Re-space the whole target list at
-            // full Gap intervals with the moved card inserted at its position.
+            // The neighbours are adjacent with no encodable rank between them. Rare,
+            // since Gap allows about 16 bisections in one slot. Re-space the whole target
+            // list at full Gap intervals with the moved card inserted at its position.
             var ordered = new List<Card>(others);
             ordered.Insert(position, card);
             string? previous = null;
@@ -228,8 +227,8 @@ public class CardService : ICardService
         // concurrent edit slipping in, surfacing as 409 via the exception middleware.
         _activity.Record(boardId, ActivityAction.Moved, ActivityEntityTypes.Card, cardId, $"Moved \"{card.Title}\"");
 
-        // Only the assignee cares that their card moved — and only when someone else moved it
-        // (the outbox drops a message whose recipient is the actor).
+        // Only the assignee cares that their card moved, and only when someone else moved it.
+        // The outbox drops any message whose recipient is the actor.
         if (card.AssigneeId is Guid owner)
             await NotifyAsync(NotificationType.AssignedCardMoved, owner, boardId, card, ct, locked[0].Name);
 
@@ -243,12 +242,10 @@ public class CardService : ICardService
     {
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
-        // Lock the board before checking membership, so the check and the write cannot straddle
-        // a concurrent removal (ADR-14). Without this, BoardService.RemoveMemberAsync can delete
-        // the membership and sweep the assignments in the gap between them — the check sees a
-        // member who is already gone, and the write lands after the sweep, stranding the card on
-        // a non-member. The removal takes this same lock first, so the two serialize; both take
-        // the board before any card, so they cannot deadlock.
+        // Lock the board before checking membership, so the check and the write can't straddle
+        // a concurrent removal. Without it, RemoveMemberAsync could delete the membership and
+        // sweep its assignments between the check and the write, stranding the card on a
+        // non-member. Both take the board lock before any card, so they serialize without deadlock.
         await _db.Boards.FromSql($"SELECT * FROM boards WHERE id = {boardId} FOR UPDATE").ToListAsync(ct);
 
         var card = await FindCardAsync(boardId, cardId, ct);
@@ -262,23 +259,22 @@ public class CardService : ICardService
                 throw new ValidationAppException("The assignee must be a member of the board.");
         }
 
-        // Read before the overwrite: the person losing the card is the only one who can tell us
-        // there was one to lose.
+        // Capture the previous assignee before overwriting, so we can notify whoever lost the card.
         var previousAssignee = card.AssigneeId;
 
         card.AssigneeId = assigneeId;
         _activity.Record(boardId, ActivityAction.Assigned, ActivityEntityTypes.Card, cardId,
             assigneeId is null ? $"Unassigned \"{card.Title}\"" : $"Assigned \"{card.Title}\"");
 
-        // Queued into this same SaveChanges: if the save below loses to the xmin check, the mail
-        // is discarded with it. Nobody is told about an assignment that did not happen.
+        // Queued in the same SaveChanges: if the save below loses the xmin check, the mail is
+        // rolled back with it, so no one is notified about an assignment that didn't commit.
         if (assigneeId is Guid newAssignee && newAssignee != previousAssignee)
             await NotifyAsync(NotificationType.CardAssigned, newAssignee, boardId, card, ct);
 
         if (previousAssignee is Guid lost && lost != assigneeId)
             await NotifyAsync(NotificationType.CardUnassigned, lost, boardId, card, ct);
         // No client If-Match here (assignment is a low-contention scalar), but the card's
-        // xmin token still guards the tracked save against a lost update -> rare 409.
+        // xmin token still guards the tracked save against a lost update, giving a rare 409.
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 

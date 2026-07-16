@@ -137,7 +137,7 @@ public class MoveEndpointsTests
         var listB = await CreateListAsync(client, token, boardB.Id);
         var card = await CreateCardAsync(client, token, boardA.Id, listA.Id, "Card");
 
-        // The card is addressed under its own board A, but the target list belongs to B —
+        // The card is addressed under its own board A, but the target list belongs to B, so
         // a cross-board move must not be possible.
         var res = await MoveAsync(client, token, boardA.Id, card.Id, listB.Id, 0);
         res.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -188,10 +188,10 @@ public class MoveEndpointsTests
         for (var i = 0; i < count; i++)
             cards.Add(await CreateCardAsync(client, token, board.Id, list.Id, $"C{i}"));
 
-        // Moving a *distinct* card to the front each time halves the smallest rank, so
-        // the head slot runs out of gap after ~16 moves and forces a rebalance. When the
-        // list is re-spaced, the smallest rank jumps back up — that upward step is the
-        // observable proof the rebalance branch executed.
+        // Moving a distinct card to the front each time halves the smallest rank, so the
+        // head slot runs out of gap after ~16 moves and forces a rebalance. When the list
+        // is re-spaced, the smallest rank jumps back up; that upward step is the observable
+        // proof the rebalance branch executed.
         var rebalanceObserved = false;
         var previousMin = (await ListCardsAsync(client, token, board.Id, list.Id))[0].Rank;
 
@@ -223,13 +223,13 @@ public class MoveEndpointsTests
         var source = await CreateListAsync(client, token, board.Id, "Source");
         var target = await CreateListAsync(client, token, board.Id, "Target");
 
-        // Two fixed anchors in the target; every mover aims for position 1 — the single
-        // slot *between* them. Nothing here serializes the movers naturally: they update
+        // Two fixed anchors in the target; every mover aims for position 1, the single
+        // slot between them. Nothing here serializes the movers naturally: they update
         // distinct card rows and only read A and B, and reads don't block under READ
         // COMMITTED. So without the target-list lock each concurrent mover reads the same
-        // (A, B) neighbours and computes the identical midpoint -> duplicate ranks. The
-        // lock forces them into distinct sub-slots. (Verified load-bearing: with the
-        // FOR UPDATE removed, the Distinct() assertion below fails.)
+        // (A, B) neighbours and computes the identical midpoint, giving duplicate ranks. The
+        // lock forces them into distinct sub-slots. (With the FOR UPDATE removed, the
+        // Distinct() assertion below fails.)
         await CreateCardAsync(client, token, board.Id, target.Id, "A");
         await CreateCardAsync(client, token, board.Id, target.Id, "B");
 
@@ -251,21 +251,20 @@ public class MoveEndpointsTests
     }
 
     /// <summary>
-    /// The conflict the whole move design turns on (ADR-6): two clients grab the <b>same</b> card at
-    /// the same version and move it to <b>different</b> lists at the same instant. This is not the
-    /// rank-collision race above — those movers touch distinct card rows and the two target-list
-    /// locks are different rows, so nothing there serializes <i>this</i> pair. What guards them is the
-    /// card's <c>xmin</c> token: exactly one move commits, the other's <c>UPDATE … WHERE xmin=V</c>
-    /// matches nothing and surfaces as a 409. First-committer-wins; the card is never duplicated or
-    /// stranded.
+    /// The conflict the whole move design turns on: two clients grab the same card at the same
+    /// version and move it to different lists at the same instant. This is not the rank-collision
+    /// race above; those movers touch distinct card rows and the two target-list locks are different
+    /// rows, so nothing there serializes this pair. What guards them is the card's <c>xmin</c> token:
+    /// exactly one move commits, the other's <c>UPDATE ... WHERE xmin=V</c> matches nothing and
+    /// surfaces as a 409. First-committer-wins; the card is never duplicated or stranded.
     ///
-    /// <para>Racing two HTTP calls would almost never land inside the window — both would have to read
+    /// <para>Racing two HTTP calls would almost never land inside the window: both would have to read
     /// the card before either commits, and the loser usually just reads the winner's result and moves
-    /// <i>that</i> instead (a legitimate sequential move, not a conflict). So the interleaving is
-    /// forced: one move is replayed on a held-open transaction that holds the card's row lock at
-    /// version V, then the real HTTP move arrives, blocks on that lock, and only wakes — to find V
-    /// gone — once the first commits. (Same technique as <c>AssigningWhileTheMemberIsRemoved</c> in
-    /// <see cref="ConcurrencyTests"/>.)</para>
+    /// that instead (a legitimate sequential move, not a conflict). So the interleaving is forced:
+    /// one move is replayed on a held-open transaction that holds the card's row lock at version V,
+    /// then the real HTTP move arrives, blocks on that lock, and only wakes, to find V gone, once the
+    /// first commits. Same technique as <c>AssigningWhileTheMemberIsRemoved</c> in
+    /// <see cref="ConcurrencyTests"/>.</para>
     /// </summary>
     [Fact]
     public async Task ConcurrentMovesOfOneCardToDifferentLists_LetExactlyOneThrough()
@@ -290,7 +289,7 @@ public class MoveEndpointsTests
 
         // Client B's move into column C arrives now. It reads the card at the still-committed version
         // V (A's UPDATE is uncommitted, and reads don't block under READ COMMITTED), then blocks on
-        // the row lock at its own UPDATE … WHERE xmin = V.
+        // the row lock at its own UPDATE ... WHERE xmin = V.
         var loserTask = MoveAsync(client, token, board.Id, card.Id, toC.Id, 0);
 
         // Long enough that B is parked on the row lock, not still in flight.
@@ -300,7 +299,7 @@ public class MoveEndpointsTests
         // B wakes, finds xmin has moved past V, and its zero-row UPDATE becomes a 409.
         (await loserTask).StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
-        // The card lives in exactly one place — A's column — neither duplicated nor stranded.
+        // The card lives in exactly one place, A's column, neither duplicated nor stranded.
         (await ListCardsAsync(client, token, board.Id, toB.Id)).Select(c => c.Id).ShouldBe(new[] { card.Id });
         (await ListCardsAsync(client, token, board.Id, toC.Id)).ShouldBeEmpty();
         (await ListCardsAsync(client, token, board.Id, source.Id)).ShouldBeEmpty();

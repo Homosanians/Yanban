@@ -4,7 +4,7 @@ namespace Yanban.Application.Abstractions;
 /// Thin seam over S3-compatible object storage. The API never streams bytes itself:
 /// it hands clients short-lived presigned URLs and only performs control-plane
 /// operations (ensure bucket, verify/delete objects) here. Presign calls are local
-/// signature computation — no network round-trip.
+/// signature computation, no network round-trip.
 /// </summary>
 public interface IObjectStorage
 {

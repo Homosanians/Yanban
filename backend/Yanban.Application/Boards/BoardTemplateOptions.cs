@@ -5,10 +5,10 @@ public record BoardTemplate(string Id, string Name, IReadOnlyList<string> Lists)
 
 /// <summary>
 /// The starter templates a new board can be seeded from. Configurable rather than a hardcoded
-/// array — a new layout is a config change, not a deploy — but shipped with sensible built-ins so
-/// the app works out of the box with no configuration at all.
+/// array (a new layout is a config change, not a deploy), but shipped with sensible built-ins so
+/// the app works out of the box with no configuration.
 ///
-/// <para>The list <i>order</i> is meaningful: it becomes the left-to-right rank order on the board.</para>
+/// <para>The list order is meaningful: it becomes the left-to-right rank order on the board.</para>
 /// </summary>
 public class BoardTemplateOptions
 {

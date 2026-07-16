@@ -5,8 +5,7 @@ namespace Yanban.Domain.Ordering;
 /// integers. Lexicographic string order equals numeric order, so ordering rows by
 /// the rank column yields position order. Appends leave a <see cref="Gap"/> between
 /// neighbours; <see cref="TryBetween"/> bisects that gap for drag-and-drop inserts,
-/// and reports exhaustion so the caller can rebalance — all on the same encoding, so
-/// no data migration was needed to go from append-only (M2) to arbitrary moves (M3).
+/// and reports exhaustion so the caller can rebalance.
 /// </summary>
 public static class Rank
 {
@@ -24,12 +23,12 @@ public static class Rank
 
     /// <summary>
     /// Produces a rank that sorts strictly between <paramref name="left"/> and
-    /// <paramref name="right"/> (either bound null = start/end of the list). One
+    /// <paramref name="right"/> (either bound null means start/end of the list). One
     /// unified midpoint covers all four null combinations: a missing left is treated
     /// as 0 and a missing right as one full <see cref="Gap"/> above left, so
     /// <c>TryBetween(null, null)</c> == <see cref="First"/> and
     /// <c>TryBetween(x, null)</c> == <see cref="After"/>(x). Returns <c>false</c> when
-    /// the neighbours are adjacent (no integer in between) — the caller must rebalance.
+    /// the neighbours are adjacent (no integer in between); the caller must rebalance.
     /// </summary>
     public static bool TryBetween(string? left, string? right, out string rank)
     {

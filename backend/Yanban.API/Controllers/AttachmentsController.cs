@@ -8,7 +8,7 @@ using Yanban.Infrastructure.Persistence;
 namespace Yanban.API.Controllers;
 
 /// <summary>
-/// Card attachments. Bytes never flow through the API: an upload is a two-step dance —
+/// Card attachments. Bytes never flow through the API: an upload is a two-step dance,
 /// request a presigned <c>PUT</c> URL, upload straight to storage, then confirm. Reads
 /// mint short-lived presigned download URLs on demand.
 /// </summary>

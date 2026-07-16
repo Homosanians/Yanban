@@ -71,7 +71,7 @@ export function BoardsPage() {
         {boards.isError && <p className="error">{(boards.error as Error).message}</p>}
 
         <div className="bento">
-          {/* The newest board gets the big cell — it is the one you almost always want. */}
+          {/* The newest board gets the big cell: it is the one you almost always want. */}
           {boards.data?.map((board, i) => (
             <Link
               key={board.id}
@@ -94,7 +94,7 @@ export function BoardsPage() {
                 {board.archived && <span className="badge">Archived</span>}
               </span>
 
-              {/* Only an Admin may archive or delete — the API enforces it; this just avoids
+              {/* Only an Admin may archive or delete; the API enforces it, this just avoids
                   offering a button that would 403. */}
               {canAdmin(board.role) && (
                 <span className="tile-actions">

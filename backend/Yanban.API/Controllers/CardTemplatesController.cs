@@ -9,7 +9,7 @@ namespace Yanban.API.Controllers;
 
 /// <summary>
 /// Board-scoped card templates. Curating them is an Editor's job (<c>Write</c>), not board
-/// administration — a template is a card-shaped artifact, not board configuration.
+/// administration; a template is a card-shaped artifact, not board configuration.
 /// </summary>
 public class CardTemplatesController : BoardScopedController
 {

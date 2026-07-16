@@ -91,8 +91,8 @@ export function MembersPanel({ boardId, role, onClose }: Props) {
             <li key={m.userId} className="member">
               <Avatar email={m.email} name={m.displayName} />
 
-              {/* min-width:0 (via .who) is what lets a long email ellipsize instead of shoving
-                  the role select out of the panel. */}
+              {/* min-width:0 (via .who) lets a long email ellipsize instead of shoving the role
+                  select out of the panel. */}
               <div className="who">
                 <strong>{m.displayName}</strong>
                 <span className="email" title={m.email}>{m.email}</span>

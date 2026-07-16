@@ -32,8 +32,8 @@ public class NotificationPreferenceConfiguration : IEntityTypeConfiguration<Noti
             .HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // A preference is *about* a board and dies with it — unlike an outbox row, there is nothing
-        // to remember once the board is gone.
+        // A preference is about a board and dies with it. Unlike an outbox row, there is nothing
+        // to keep once the board is gone.
         b.HasOne(x => x.Board)
             .WithMany()
             .HasForeignKey(x => x.BoardId)

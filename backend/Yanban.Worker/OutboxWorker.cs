@@ -6,13 +6,13 @@ using Yanban.Infrastructure.Storage;
 namespace Yanban.Worker;
 
 /// <summary>
-/// The loop. All of the interesting behaviour lives in <see cref="OutboxProcessor"/> and
-/// <see cref="StorageJanitor"/> — deliberately, because that is what the tests drive: a
-/// <c>BackgroundService</c> is not something you can assert against, and a claim loop very much is.
+/// The loop. The actual work lives in <see cref="OutboxProcessor"/> and
+/// <see cref="StorageJanitor"/>, which is what the tests drive: a
+/// <c>BackgroundService</c> is hard to assert against, and a claim loop is not.
 ///
 /// <para>One process, three queues: emails to send, objects to delete, and abandoned uploads to
-/// reap. They share a worker because they share a shape — a Postgres-backed queue drained by a
-/// <c>SKIP LOCKED</c> claim — and none of them is busy enough to want its own.</para>
+/// reap. They share a worker because they share a shape, a Postgres-backed queue drained by a
+/// <c>SKIP LOCKED</c> claim, and none of them is busy enough to need its own.</para>
 /// </summary>
 public class OutboxWorker : BackgroundService
 {
@@ -48,7 +48,7 @@ public class OutboxWorker : BackgroundService
                 var processor = scope.ServiceProvider.GetRequiredService<OutboxProcessor>();
                 var janitor = scope.ServiceProvider.GetRequiredService<StorageJanitor>();
 
-                // Drain rather than sip: a burst should not take several polls to clear.
+                // Drain fully rather than one batch per poll, so a burst clears in a single pass.
                 while (await processor.ProcessBatchAsync(stoppingToken) > 0) { }
 
                 // Reap abandoned uploads first, so the objects they orphan are enqueued in time for
@@ -62,7 +62,7 @@ public class OutboxWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                // An exception escaping ExecuteAsync stops a BackgroundService permanently — and a
+                // An exception escaping ExecuteAsync stops a BackgroundService permanently, and a
                 // notifier that quietly died is worse than one that is merely behind.
                 _logger.LogError(ex, "Outbox poll failed; retrying on the next tick.");
             }

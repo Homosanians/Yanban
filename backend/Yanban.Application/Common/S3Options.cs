@@ -12,10 +12,10 @@ public class S3Options
     public string Endpoint { get; set; } = "";
 
     /// <summary>
-    /// Base URL a <i>browser</i> uses to reach storage, e.g. <c>http://localhost:9000</c> while the
-    /// API talks to <c>http://minio:9000</c> inside the Compose network. Presigned URLs are minted
+    /// Base URL a browser uses to reach storage, e.g. <c>http://localhost:9000</c> while the API
+    /// talks to <c>http://minio:9000</c> inside the Compose network. Presigned URLs are minted
     /// against this, because the host is part of the signature and cannot be rewritten afterwards.
-    /// Empty means the browser and the API reach storage identically (ADR-10).
+    /// Empty means the browser and the API reach storage identically.
     /// </summary>
     public string PublicEndpoint { get; set; } = "";
 
@@ -29,7 +29,6 @@ public class S3Options
     /// <summary>How long issued presigned upload/download URLs stay valid.</summary>
     public int PresignExpiryMinutes { get; set; } = 15;
 
-    // The per-file cap used to live here as MaxUploadBytes. It moved to QuotaOptions, behind
-    // IBoardQuotaPolicy (ADR-19): how large a file may be is a policy about a *board*, not a fact
-    // about the storage backend, and it now has to be decided in the same breath as the board total.
+    // File-size limits live in QuotaOptions behind IBoardQuotaPolicy: how large a file may be is a
+    // policy about a board, decided alongside the board total, not a fact about the storage backend.
 }

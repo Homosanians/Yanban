@@ -4,7 +4,7 @@ namespace Yanban.Domain.Authorization;
 
 /// <summary>
 /// The board authorization rule set: pure function of the caller's role (RBAC) and
-/// board attributes (ABAC — ownership, archived state). Kept dependency-free in the
+/// board attributes (ABAC: ownership, archived state). Kept dependency-free in the
 /// domain so the full truth table is unit-testable without HTTP or a database; the
 /// ASP.NET <c>BoardAuthorizationHandler</c> is a thin wrapper over this.
 /// </summary>

@@ -19,12 +19,12 @@ using Yanban.Infrastructure.Persistence;
 namespace Yanban.IntegrationTests;
 
 /// <summary>
-/// M15 — configurable templates, and the storage-leak fix.
+/// Configurable templates, and the storage-leak fix.
 ///
 /// <para>The load-bearing test is <see cref="DeletingABoard_EnqueuesEveryAttachmentsObject"/>: it
-/// deletes a *board* and asserts the object_deletions queue holds the key of an attachment two
-/// levels down (board → list → card → attachment). That path is a Postgres cascade the application
-/// never sees, so only a database trigger can catch it — which is the whole argument of ADR-20.</para>
+/// deletes a board and asserts the object_deletions queue holds the key of an attachment two
+/// levels down (board, list, card, attachment). That path is a Postgres cascade the application
+/// never sees, so only a database trigger can catch it.</para>
 /// </summary>
 [Collection("api")]
 public class BoardTemplateAndGcTests
@@ -106,7 +106,7 @@ public class BoardTemplateAndGcTests
             .ShouldBe(new[] { "Backlog", "Ready for Dev", "In Progress", "Code Review", "QA", "Done" });
     }
 
-    /// <summary>The M11 boolean still works: an old client that only knows it gets the simple template.</summary>
+    /// <summary>The legacy boolean still works: an old client that only knows it gets the simple template.</summary>
     [Fact]
     public async Task TheLegacySeedFlag_StillMeansTheSimpleTemplate()
     {
@@ -148,7 +148,7 @@ public class BoardTemplateAndGcTests
 
     /// <summary>
     /// Seeds a Ready attachment, deletes the whole board, and asserts the trigger enqueued the
-    /// object — reaching it through a two-level cascade (board → list → card → attachment) that no
+    /// object, reaching it through a two-level cascade (board, list, card, attachment) that no
     /// application code touches. Remove the trigger and the queue stays empty and the object leaks.
     /// </summary>
     [Fact]
@@ -156,7 +156,7 @@ public class BoardTemplateAndGcTests
     {
         var (boardId, storageKey) = await SeedReadyAttachmentAsync();
 
-        // Delete the board directly in the database — a cascade, exactly what "deleted via db" means.
+        // Delete the board directly in the database, a cascade, exactly what "deleted via db" means.
         await WithDbAsync(async db =>
         {
             await db.Boards.Where(b => b.Id == boardId).ExecuteDeleteAsync();
@@ -171,7 +171,7 @@ public class BoardTemplateAndGcTests
         queued.ShouldHaveSingleItem().DeletedAt.ShouldBeNull();
     }
 
-    /// <summary>Deleting a single card enqueues its attachment's object too — same trigger, shorter cascade.</summary>
+    /// <summary>Deleting a single card enqueues its attachment's object too: same trigger, shorter cascade.</summary>
     [Fact]
     public async Task DeletingACard_EnqueuesItsAttachmentsObject()
     {
@@ -194,7 +194,7 @@ public class BoardTemplateAndGcTests
     }
 
     /// <summary>
-    /// Inserts a Ready attachment straight through the DbContext — this test is about the trigger,
+    /// Inserts a Ready attachment straight through the DbContext; this test is about the trigger,
     /// not the upload flow, and MinIO never needs to hold real bytes for the DB rows to exist.
     /// </summary>
     private async Task<(Guid BoardId, string StorageKey, Guid CardId)> SeedReadyAttachmentWithCardAsync()

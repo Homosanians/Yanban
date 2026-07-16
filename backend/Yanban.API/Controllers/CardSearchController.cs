@@ -8,7 +8,7 @@ using Yanban.Infrastructure.Persistence;
 namespace Yanban.API.Controllers;
 
 /// <summary>
-/// Full-text search over a board's cards (ADR-12). Board-scoped on purpose: search inherits
+/// Full-text search over a board's cards. Board-scoped on purpose: search inherits
 /// the same ABAC gate as every other endpoint, so it adds no new authorization surface.
 /// </summary>
 public class CardSearchController : BoardScopedController

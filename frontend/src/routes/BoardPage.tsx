@@ -35,13 +35,13 @@ import { useToast } from "../toast/useToast";
 type SidePanel = "members" | "activity" | "templates" | "settings" | null;
 
 /**
- * Pointer-first collision detection — and the reason a card no longer flickers between two slots
- * when you drag it to the bottom of its own column.
+ * Pointer-first collision detection, which keeps a card from flickering between two slots when
+ * dragged to the bottom of its own column.
  *
  * The rect-based detectors (closestCorners and friends) answer "which droppable is nearest to the
- * *dragged element's* box". That box is being moved by the sort strategy at the same time as the
- * strategy is reacting to the answer, so near a boundary the two chase each other and the card
- * oscillates. The pointer does not move because of anything we render, which breaks the loop.
+ * dragged element's box". That box is moved by the sort strategy at the same time as the strategy
+ * reacts to the answer, so near a boundary the two chase each other and the card oscillates. The
+ * pointer does not move because of anything we render, which breaks the loop.
  *
  * rectIntersection is only a fallback for when the pointer has left every droppable (dragged out
  * past the edge of the board), where there is no loop to worry about.
@@ -67,8 +67,7 @@ export function BoardPage() {
   const { boardId = "" } = useParams();
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
-  // One toast mechanism for the whole app (M14). This used to be a `dragError` useState right here,
-  // which meant a failed upload in the card drawer had nowhere to go.
+  // One toast mechanism for the whole app.
   const { show } = useToast();
 
   const [openCardId, setOpenCardId] = useState<string | null>(null);
@@ -79,15 +78,15 @@ export function BoardPage() {
   const [dragging, setDragging] = useState<string | null>(null);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
 
-  // Live updates from everyone else's mutations (ADR-11). Our own echo is filtered out inside.
+  // Live updates from everyone else's mutations. Our own echo is filtered out inside.
   useBoardRealtime(boardId, user?.id);
 
   const board = useQuery({ queryKey: boardKeys.one(boardId), queryFn: () => getBoard(boardId) });
   const lists = useQuery({ queryKey: contentKeys.lists(boardId), queryFn: () => listLists(boardId) });
   const members = useQuery({ queryKey: boardKeys.members(boardId), queryFn: () => listMembers(boardId) });
 
-  // One cards query per list — the API has no board-wide card read, and per-list keys are what
-  // let a realtime invalidation land on just the lists that changed.
+  // One cards query per list: the API has no board-wide card read, and per-list keys let a
+  // realtime invalidation land on just the lists that changed.
   const cardQueries = useQueries({
     queries: (lists.data ?? []).map((list) => ({
       queryKey: contentKeys.cards(boardId, list.id),
@@ -111,7 +110,7 @@ export function BoardPage() {
     },
   });
 
-  // --- ⌘K -----------------------------------------------------------------
+  // --- Cmd/Ctrl K ---------------------------------------------------------
   // Deliberately fires even when an input has focus: a command palette that you cannot open
   // from the box you are typing in is not a command palette.
   useEffect(() => {
@@ -130,7 +129,7 @@ export function BoardPage() {
     mutationFn: (v: { cardId: string; listId: string; assigneeId: string | null }) =>
       assignCard(boardId, v.cardId, v.assigneeId),
     onMutate: async (v) => {
-      // Show it immediately — a keyboard shortcut that waits for a round-trip feels broken.
+      // Show it immediately: a keyboard shortcut that waits for a round-trip feels broken.
       const key = contentKeys.cards(boardId, v.listId);
       await queryClient.cancelQueries({ queryKey: key });
       const snapshot = queryClient.getQueryData<Card[]>(key);
@@ -175,7 +174,7 @@ export function BoardPage() {
       const card = listId ? s.cardsByList[listId].find((c) => c.id === s.hoveredCardId) : undefined;
       if (!listId || !card) return;
 
-      // Or the page scrolls out from under the board.
+      // Stop Space from scrolling the page.
       e.preventDefault();
 
       // Toggle: already mine? hand it back. Someone else's? take it over.
@@ -193,12 +192,11 @@ export function BoardPage() {
   // would start a 0-pixel drag instead.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  // Auto-scroll a tall column while dragging. dnd-kit's built-in auto-scroll only ramps up against
-  // the *viewport* edge, never a nested scroll container's own edge — so in an overflowing column
-  // every card below the fold was unreachable mid-drag (you could only drop among the ones already
-  // on screen). This tracks the pointer and scrolls whichever column's card list it is hovering
-  // when it nears that list's top or bottom, including when it strays just past the bottom onto the
-  // "Add a card" strip.
+  // Auto-scroll a tall column while dragging. dnd-kit's built-in auto-scroll ramps only against the
+  // viewport edge, never a nested scroll container's own edge, so cards below the fold of an
+  // overflowing column are otherwise unreachable mid-drag. This tracks the pointer and scrolls
+  // whichever column's card list it is hovering when it nears that list's top or bottom, including
+  // when it strays just past the bottom onto the "Add a card" strip.
   const pointer = useRef({ x: 0, y: 0 });
   const autoScrollRAF = useRef<number | null>(null);
 
@@ -232,8 +230,7 @@ export function BoardPage() {
     autoScrollRAF.current = null;
   }, [trackPointer]);
 
-  // Belt and braces: never leave the rAF loop or the listener running if the component unmounts
-  // mid-drag.
+  // Never leave the rAF loop or the listener running if the component unmounts mid-drag.
   useEffect(() => stopAutoScroll, [stopAutoScroll]);
 
   const onDragStart = (e: DragStartEvent) => {
@@ -271,19 +268,12 @@ export function BoardPage() {
       : Object.keys(cardsByList).find((id) => cardsByList[id].some((c) => c.id === overId));
     if (!targetListId) return;
 
-    // The API's `position` is an index among the target list's *other* cards — so the index is
-    // read from the list *including* the dragged card, which is what makes it agree with the
-    // preview dnd-kit is drawing.
+    // For a same-list move the index must be read from the list including the dragged card, so it
+    // matches the arrayMove preview dnd-kit is drawing. Reading it with the dragged card removed
+    // lands the card one slot short of where the user watched it settle.
     //
-    // This is the off-by-one that made a card dropped at the bottom of its own column jump back
-    // up one slot. The sort strategy previews an arrayMove: drag Alpha onto Echo and everything
-    // between them shifts up, so Alpha lands *after* Echo. Reading the index out of the list with
-    // Alpha already removed gives Echo's index as 3, and the card is inserted *before* Echo —
-    // one short of where the user just watched it settle. Reading it from the full list gives 4,
-    // which is exactly arrayMove's answer.
-    //
-    // A cross-list move needs no such care: the dragged card is not in the target list, so the
-    // two indices coincide, and inserting before the hovered card is what you want anyway.
+    // A cross-list move needs no such care: the dragged card is not in the target list, so the two
+    // indices coincide, and inserting before the hovered card is what you want anyway.
     const target = cardsByList[targetListId];
     const withoutDragged = target.filter((c) => c.id !== cardId);
     const overIndex = overIsList ? withoutDragged.length : target.findIndex((c) => c.id === overId);
@@ -321,13 +311,11 @@ export function BoardPage() {
       queryClient.setQueryData(sourceKey, sourceSnapshot);
       queryClient.setQueryData(targetKey, targetSnapshot);
 
-      // A 409 is the optimistic-concurrency conflict (ADR-6): someone else moved this same card
-      // first, and won. Their target may be a third list — neither our source nor our target — so
-      // the finally below, which only refetches those two, would never fetch the card's real
-      // home and it would sit missing until realtime happened to catch up. Invalidate the whole
-      // board so the loser converges to the winner's column immediately, and say what happened in
-      // words that match: the card is *not* lost and there is nothing to retry, so don't tell them
-      // to reload as the generic server message does.
+      // A 409 is the optimistic-concurrency conflict: someone else moved this same card first and
+      // won. Their target may be a third list, neither our source nor our target, which the finally
+      // below (it refetches only those two) would never reach, leaving the card missing until
+      // realtime caught up. Invalidate the whole board so we converge on the winner's column now,
+      // with a message that says the card is not lost and there is nothing to retry.
       if (err instanceof ApiError && err.status === 409) {
         void queryClient.invalidateQueries({ queryKey: ["boards", boardId] });
         show("Someone else moved this card first — showing where it is now.");
@@ -335,7 +323,7 @@ export function BoardPage() {
         show(err instanceof Error ? err.message : "Could not move the card.");
       }
     } finally {
-      // Ranks are the server's to assign — refetch rather than trust our guess at the order.
+      // Ranks are the server's to assign: refetch rather than trust our guess at the order.
       void queryClient.invalidateQueries({ queryKey: sourceKey });
       if (sourceListId !== targetListId) void queryClient.invalidateQueries({ queryKey: targetKey });
     }
@@ -428,12 +416,11 @@ export function BoardPage() {
       <div className="board-body">
         <DndContext
           sensors={sensors}
-          // dnd-kit's built-in auto-scroll ramps against the *viewport* edge, so hovering a card in
-          // a right-hand column (well inside the window, but within its scroll band) silently scrolled
-          // the whole board sideways — sliding the drop target out from under the cursor, which left
-          // `over` null and made drops onto those cards fail. Its only effect here was that harmful
-          // horizontal scroll: the board never scrolls vertically (`.board-body` is overflow:hidden),
-          // and reaching cards below a tall column's fold is handled by our own `runAutoScroll` below.
+          // Off because dnd-kit's built-in auto-scroll ramps against the viewport edge: hovering a
+          // card in a right-hand column scrolls the whole board sideways, sliding the drop target
+          // out from under the cursor so `over` goes null and the drop fails. The board never
+          // scrolls vertically (`.board-body` is overflow:hidden), and reaching cards below a tall
+          // column's fold is handled by `runAutoScroll` above.
           autoScroll={false}
           collisionDetection={collisionDetection}
           // Cards appear, vanish and reflow under the pointer; stale rects would send a drop to
@@ -493,8 +480,8 @@ export function BoardPage() {
             )}
           </div>
 
-          {/* The only thing that follows the cursor. Rendering the drag as a separate layer is
-              what lets the card in the column stay put and behave as a placeholder. */}
+          {/* Follows the cursor. Rendering the drag on a separate layer lets the card in the
+              column stay put and act as a placeholder. */}
           <DragOverlay dropAnimation={null}>
             {activeCard && <CardOverlay card={activeCard} members={members.data ?? []} />}
           </DragOverlay>

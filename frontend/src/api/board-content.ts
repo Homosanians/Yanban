@@ -135,9 +135,9 @@ export const listAttachments = (boardId: string, cardId: string): Promise<Attach
 
 /**
  * Uploads never pass through the API: it hands out a presigned URL and the browser PUTs the
- * bytes straight to object storage, then tells the API the upload landed (ADR-10). The
- * Content-Type must match the ticket exactly — it is a *signed* header, so anything else is
- * rejected by storage as a bad signature.
+ * bytes straight to object storage, then tells the API the upload landed. The Content-Type
+ * must match the ticket exactly, since it is a signed header, so anything else is rejected
+ * by storage as a bad signature.
  */
 export async function uploadAttachment(boardId: string, cardId: string, file: File): Promise<Attachment> {
   const ticket = await apiFetch<UploadTicket>(`/boards/${boardId}/cards/${cardId}/attachments`, {

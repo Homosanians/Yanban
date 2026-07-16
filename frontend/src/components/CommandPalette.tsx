@@ -11,8 +11,8 @@ interface Props {
 }
 
 /**
- * ⌘K over the board's full-text search (ADR-12). Search is board-scoped on the server, so this is
- * too — there is no such thing as a global query here.
+ * Cmd/Ctrl K over the board's full-text search. Search is board-scoped on the server, so this is
+ * too: there is no such thing as a global query here.
  */
 export function CommandPalette({ boardId, onPick, onClose }: Props) {
   const [q, setQ] = useState("");
