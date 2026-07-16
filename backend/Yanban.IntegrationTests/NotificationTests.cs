@@ -30,7 +30,7 @@ namespace Yanban.IntegrationTests;
 ///
 /// <para>Two tests here carry the design. <see cref="Enqueue_DoesNotSave_UntilTheCallerDoes"/>
 /// pins the contract that makes the outbox transactional at all: the writer only <c>Add</c>s, so a
-/// mutation that rolls back takes its email with it. <see cref="TwoWorkers_ClaimDisjointBatches_AndSendNothingTwice"/>
+/// mutation that rolls back takes its email with it. <see cref="TwoWorkers_NeverSendTheSameMessageTwice"/>
 /// pins the claim: it fails one way if the row lock is removed (the same mail goes out twice) and
 /// a different way if <c>SKIP LOCKED</c> is downgraded to a plain <c>FOR UPDATE</c> (the second
 /// worker blocks, wakes to find the rows spent, and does nothing at all).</para>
