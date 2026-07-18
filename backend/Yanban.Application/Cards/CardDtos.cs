@@ -32,4 +32,5 @@ public record CardDto(
     DateTimeOffset? DueDate,
     string Rank,
     uint Version,
-    Guid? AssigneeId);
+    Guid? AssigneeId,
+    Guid CreatedById);

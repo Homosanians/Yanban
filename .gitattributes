@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Binary diagram assets are stored with Git LFS, not inline in the repo history
+docs/*.png filter=lfs diff=lfs merge=lfs -text

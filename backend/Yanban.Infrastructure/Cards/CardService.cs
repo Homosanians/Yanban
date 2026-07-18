@@ -297,5 +297,5 @@ public class CardService : ICardService
 
     private CardDto ToDto(Card card) =>
         new(card.Id, card.ListId, card.Title, card.Description, card.DueDate, card.Rank,
-            (uint)_db.Entry(card).Property(XminProperty).CurrentValue!, card.AssigneeId);
+            (uint)_db.Entry(card).Property(XminProperty).CurrentValue!, card.AssigneeId, card.CreatedById);
 }

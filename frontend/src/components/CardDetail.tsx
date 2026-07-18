@@ -296,6 +296,10 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
     })),
   ];
 
+  // The creator is resolved from the board's members, the same way the assignee is. A creator who
+  // has since left the board is no longer in that list, so fall back to a neutral label.
+  const creator = members.find((m) => m.userId === card.data?.createdById);
+
   return (
     <div className="drawer-backdrop" onClick={onClose}>
       <aside
@@ -415,6 +419,19 @@ export function CardDetail({ boardId, cardId, members, writable, selfId, onClose
                     />
                   </label>
                 </div>
+                {members.length > 0 && (
+                  <p className="faint card-created-by">
+                    <span>Created by</span>
+                    {creator ? (
+                      <>
+                        <Avatar email={creator.email} name={creator.displayName} size="sm" />
+                        <strong>{creator.displayName}</strong>
+                      </>
+                    ) : (
+                      <strong>a former member</strong>
+                    )}
+                  </p>
+                )}
                 {save.isError && !conflict && <p className="error">{(save.error as Error).message}</p>}
               </form>
 

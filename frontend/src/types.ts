@@ -51,6 +51,7 @@ export interface Card {
   /** Postgres xmin. Echoed back as If-Match to update the card. */
   version: number;
   assigneeId: string | null;
+  createdById: string;
 }
 
 export interface Comment {

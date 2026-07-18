@@ -29,14 +29,12 @@ services:
     volumes:
       - minio_data:/data
 
-  # A fake SMTP server with a web inbox. Nothing to sign up for, no credentials, no mail leaves the
-  # machine: open http://localhost:8025 and read everything the app has sent. Swapping in a real
-  # relay is a pure config change (Email__Host / __Port / __User / __Password / __UseStartTls).
+  # A fake SMTP server with a web inbox
   mailpit:
     image: axllent/mailpit:latest
     ports:
-      - "1025:1025" # SMTP, for the worker
-      - "8025:8025" # the inbox, for you
+      - "1025:1025" # SMTP
+      - "8025:8025" # the inbox web page
 
   api:
     build:
@@ -54,8 +52,6 @@ services:
       Jwt__Secret: "${JWT_SECRET:-dev-only-change-me-super-secret-signing-key-min-32-bytes-long}"
       Jwt__Issuer: "yanban"
       Jwt__Audience: "yanban"
-      # Extra cross-origin caller, consulted only outside Development. This stack runs in
-      # Development, where any origin is reflected.
       Cors__AllowedOrigins__0: "${CORS_ALLOWED_ORIGIN:-}"
       # Split horizon: the API talks to MinIO inside the Compose network, but the
       # presigned URLs it hands the browser must name a host the browser can reach. SigV4
@@ -69,11 +65,6 @@ services:
     ports:
       - "8081:8080"
 
-  # Drains the notification outbox. A separate process from the API on purpose: sending mail is
-  # slow, retried and failure-prone, and none of that belongs on a request thread.
-  #
-  # It claims rows with FOR UPDATE SKIP LOCKED, so scaling this to N replicas partitions the queue
-  # rather than sending every message N times. It does NOT apply migrations; the API owns those.
   worker:
     build:
       context: ./backend
@@ -89,7 +80,6 @@ services:
       DOTNET_ENVIRONMENT: Development
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=yanban;Username=yanban;Password=${POSTGRES_PASSWORD:-yanban_dev_password}"
       # SMTP relay. Defaults target the bundled Mailpit sink; point these at a real relay to send
-      # mail for real (Email__User/__Password/__UseStartTls). See .env.example.
       Email__Host: "${EMAIL_HOST:-mailpit}"
       Email__Port: "${EMAIL_PORT:-1025}"
       Email__User: "${EMAIL_USER:-}"

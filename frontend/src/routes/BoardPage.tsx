@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   DndContext,
@@ -11,14 +11,14 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import type { CollisionDetection, DragEndEvent, DragStartEvent } from "@dnd-kit/core";
-import { ArrowLeft, History, LayoutTemplate, LogOut, Plus, Search, Settings, Users } from "lucide-react";
+import { ArrowLeft, History, LayoutTemplate, LogOut, Pencil, Plus, Search, Settings, Users } from "lucide-react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { boardKeys, getBoard, listMembers } from "../api/boards";
+import { boardKeys, getBoard, listMembers, renameBoard } from "../api/boards";
 import { assignCard, contentKeys, createList, listCards, listLists, moveCard } from "../api/board-content";
 import { ApiError } from "../lib/apiClient";
 import { useAuth } from "../auth/useAuth";
 import { useBoardRealtime } from "../realtime/useBoardRealtime";
-import { canWrite } from "../types";
+import { canAdmin, canWrite } from "../types";
 import type { Card } from "../types";
 import { ListColumn } from "../components/ListColumn";
 import { CardOverlay } from "../components/CardTile";
@@ -77,6 +77,8 @@ export function BoardPage() {
   const [newListName, setNewListName] = useState("");
   const [dragging, setDragging] = useState<string | null>(null);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
+  const [renamingBoard, setRenamingBoard] = useState(false);
+  const [boardName, setBoardName] = useState("");
 
   // Live updates from everyone else's mutations. Our own echo is filtered out inside.
   useBoardRealtime(boardId, user?.id);
@@ -109,6 +111,30 @@ export function BoardPage() {
       void queryClient.invalidateQueries({ queryKey: contentKeys.lists(boardId) });
     },
   });
+
+  // Renaming is a Manage action, so it is gated on Admin rather than on `writable`: an admin may
+  // still rename an archived board, the same way they may unarchive or delete it.
+  const canRenameBoard = board.data ? canAdmin(board.data.role) : false;
+
+  const renameBoardMut = useMutation({
+    mutationFn: (name: string) => renameBoard(boardId, name),
+    onSuccess: (updated) => {
+      setRenamingBoard(false);
+      // Update the header now, and refetch only the boards list (its key is exactly ["boards"], so
+      // `exact` keeps this from invalidating every card and list query nested under it).
+      queryClient.setQueryData(boardKeys.one(boardId), updated);
+      void queryClient.invalidateQueries({ queryKey: boardKeys.all, exact: true });
+    },
+    onError: (err) => show(err instanceof Error ? err.message : "Could not rename the board."),
+  });
+
+  const submitBoardRename = (e: FormEvent) => {
+    e.preventDefault();
+    const next = boardName.trim();
+    // A no-op rename is just a cancel: don't spend a round-trip to write the same name back.
+    if (next && next !== board.data?.name) renameBoardMut.mutate(next);
+    else setRenamingBoard(false);
+  };
 
   // --- Cmd/Ctrl K ---------------------------------------------------------
   // Deliberately fires even when an input has focus: a command palette that you cannot open
@@ -359,7 +385,35 @@ export function BoardPage() {
           <Link to="/" className="icon-btn" aria-label="Back to boards" title="Back to boards">
             <ArrowLeft size={18} />
           </Link>
-          <h1>{board.data?.name}</h1>
+          {renamingBoard ? (
+            <form className="board-rename" onSubmit={submitBoardRename}>
+              <input
+                value={boardName}
+                onChange={(e) => setBoardName(e.target.value)}
+                onBlur={() => setRenamingBoard(false)}
+                onKeyDown={(e) => e.key === "Escape" && setRenamingBoard(false)}
+                maxLength={200}
+                autoFocus
+              />
+            </form>
+          ) : (
+            <>
+              <h1>{board.data?.name}</h1>
+              {canRenameBoard && (
+                <button
+                  className="icon-btn"
+                  aria-label={`Rename ${board.data?.name}`}
+                  title="Rename board"
+                  onClick={() => {
+                    setBoardName(board.data!.name);
+                    setRenamingBoard(true);
+                  }}
+                >
+                  <Pencil size={15} />
+                </button>
+              )}
+            </>
+          )}
           {board.data?.archived && <span className="badge">Archived · read-only</span>}
         </div>
 
